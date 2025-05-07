@@ -36,8 +36,16 @@ class LibraryUser(Base):
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
 
     user_status = relationship("StatusCode", backref="acc_status")
-    user_role = relationship("UserRole", back_populates="users", primaryjoin="LibraryUser.role == UserRole.rank")
-    user_membership = relationship("LibraryMembership", back_populates="users", primaryjoin="LibraryUser.membership_type == LibraryMembership.rank")
+    user_role = relationship(
+        "UserRole",
+        back_populates="users", 
+        primaryjoin="LibraryUser.role == UserRole.rank"
+    )
+    user_membership = relationship(
+        "LibraryMembership", 
+        back_populates="users", 
+        primaryjoin="LibraryUser.membership_type == LibraryMembership.rank"
+    )
 
 
     @staticmethod
@@ -65,27 +73,31 @@ class LibraryUser(Base):
 
 
     def __repr__(self) -> str:
-        return f"<LibraryUser(user_id='{self.user_id}', email='{self.email}', active={self.account_status})>"
+        return f"<LibraryUser(user_id='{self.user_id}', name='{self.first_name} {self.last_name}', active={self.account_status})>"
 
 
     # ------------------ CRUD Operations ------------------ #
     @classmethod
     def create_user(cls, session: Session,
                     first_name: str, last_name: str,
-                    email: str, phone_number: str, password: str,
+                    email: str, phone_number: Optional[str], password: str,
                     role: int = 3, membership_type: int = 5) -> "LibraryUser":
         """
         Create a new user in database.
         """
-        # Check if user with same email exists
-        if session.query(cls).filter_by(email=email).first():
-            LOGGER.error(f"User with email '{email}' already exists.")
-            raise ValueError(f"User with email '{email}' already exists.")
-        
-        # Check if user with same phone number exists (if provided)
-        if phone_number and session.query(cls).filter_by(phone_number=phone_number).first():
-            LOGGER.error(f"User with phone number '{phone_number}' already exists.")
-            raise ValueError(f"User with phone number '{phone_number}' already exists.")
+        # Check if user with same email or phone number exists
+        if phone_number:
+            existing = session.query(cls).filter(
+                (cls.email == email) | (cls.phone_number == phone_number)
+            ).first()
+        else:
+            existing = session.query(cls).filter(
+                (cls.email == email)
+            ).first()
+
+        if existing:
+            LOGGER.error(f"User with email or phone number already exists. User ID: {existing.user_id}")
+            raise ValueError(f"User with email or phone number already exists. User ID: {existing.user_id}")
 
         new_user = cls(
             user_uuid=str(uuid.uuid4()),
@@ -100,7 +112,7 @@ class LibraryUser(Base):
         )
         session.add(new_user)
         session.commit()
-        LOGGER.info(f"User '{new_user.first_name} {new_user.last_name}' created successfully.")
+        LOGGER.info(f"User '{new_user.user_id}' - '{new_user.first_name} {new_user.last_name}' created successfully.")
         return new_user
 
 
@@ -109,22 +121,25 @@ class LibraryUser(Base):
         """
         View user details.
         """
-        user = session.query(LibraryUser).filter_by(email=email, account_status='ACTIVE').first()
-        if not user:
-            LOGGER.error(f"User with email {email} not found or inactive.")
-            raise ValueError(f"User with email {email} not found or inactive.")
+        existing = session.query(LibraryUser).filter(
+            (LibraryUser.email == email),
+            (LibraryUser.account_status.in_(['ACTIVE', 'BLOCKED']))
+        ).first()
+        if not existing:
+            LOGGER.error("User does not exist or is inactive.")
+            raise ValueError("User does not exist or is inactive.")
 
         return {
-            "User UUID": user.user_uuid,
-            "User ID": user.user_id,
-            "Name": f"{user.first_name} {user.last_name}",
-            "Email": user.email,
-            "Phone": user.phone_number,
-            "Role": user.role,
-            "Membership": user.membership_type,
-            "Status": user.account_status,
-            "Pastor": user.is_pastor,
-            "Founder": user.is_founder
+            "User UUID": existing.user_uuid,
+            "User ID": existing.user_id,
+            "Name": f"{existing.first_name} {existing.last_name}",
+            "Email": existing.email,
+            "Phone": existing.phone_number,
+            "Role": existing.role,
+            "Membership": existing.membership_type,
+            "Status": existing.account_status,
+            "Pastor": existing.is_pastor,
+            "Founder": existing.is_founder
         }
 
 
@@ -133,19 +148,22 @@ class LibraryUser(Base):
         """
         Edit user details.
         """
-        user = session.query(LibraryUser).filter_by(email=email, account_status='ACTIVE').first()
-        if not user:
-            LOGGER.error(f"User with email {email} not found or inactive.")
-            raise ValueError(f"User with email {email} not found or inactive.")
+        existing = session.query(LibraryUser).filter(
+            (LibraryUser.email == email),
+            (LibraryUser.account_status.in_(['ACTIVE', 'BLOCKED']))
+        ).first()
+        if not existing:
+            LOGGER.error("User does not exist or is inactive.")
+            raise ValueError("User does not exist or is inactive.")
 
         for key, value in kwargs.items():
             if key == "password":
-                setattr(user, key, generate_password_hash(value))  
-            elif hasattr(user, key):
-                setattr(user, key, value)
+                setattr(existing, key, generate_password_hash(value))  
+            elif hasattr(existing, key):
+                setattr(existing, key, value)
 
         session.commit()
-        LOGGER.info(f"User '{user.first_name} {user.last_name}' updated successfully.")
+        LOGGER.info(f"User '{existing.user_id}' - '{existing.first_name} {existing.last_name}' updated successfully.")
 
 
     @staticmethod
@@ -153,11 +171,14 @@ class LibraryUser(Base):
         """
         Soft delete a user.
         """
-        user = session.query(LibraryUser).filter_by(email=email, account_status='ACTIVE').first()
-        if not user:
-            LOGGER.error(f"User with email {email} not found or inactive.")
-            raise ValueError(f"User with email {email} not found or inactive.")
+        existing = session.query(LibraryUser).filter(
+            (LibraryUser.email == email),
+            (LibraryUser.account_status.in_(['ACTIVE', 'BLOCKED']))
+        ).first()
+        if not existing:
+            LOGGER.error("User does not exist or is inactive.")
+            raise ValueError("User does not exist or is inactive.")
 
-        user.account_status = 'INACTIVE'  # Soft delete
+        existing.account_status = 'INACTIVE'  # Soft delete
         session.commit()
-        LOGGER.info(f"User '{user.user_id}' - '{user.first_name} {user.last_name}' deactivated successfully.")
+        LOGGER.info(f"User '{existing.user_id}' - '{existing.first_name} {existing.last_name}' deactivated successfully.")
