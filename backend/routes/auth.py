@@ -123,7 +123,8 @@ def register():
         return jsonify({"message": f"User registered successfully: {new_user.user_id}"}), 201
     except Exception as ex:
         db_session.rollback()
-        return jsonify({"error": str(ex)}), 400
+        LOGGER.error(f"User registration failed: {ex}")
+        return jsonify({"error": "Bad request!"}), 400
     finally:
         db_session.close()
 
