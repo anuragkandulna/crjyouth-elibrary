@@ -1,31 +1,42 @@
 """
-Logger model.
+Custom Logger Utility.
+Handles logging setup for different parts of the application with production-safe paths.
 """
 
 import logging
 from logging.handlers import RotatingFileHandler
+import os
+
 
 class CustomLogger:
-    def __init__(self, name=__name__, level=logging.DEBUG, log_file='application.log', max_bytes=500000, backup_count=5):
+    def __init__(self, name=__name__, level=logging.DEBUG, log_file='application.log',
+                 max_bytes=500000, backup_count=5):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
 
-        # Check if handlers are already added to avoid duplicate logs
         if not self.logger.handlers:
-            # Create a rotating file handler
-            file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+            # Use /var/log/ in production
+            log_directory = '/var/log/' if os.getenv('FLASK_ENV') == 'production' else '.'
+            full_log_path = os.path.join(log_directory, log_file)
+
+            # Ensure log directory exists
+            if os.getenv('FLASK_ENV') == 'production' and not os.path.exists('/var/log/'):
+                raise RuntimeError("Production log directory '/var/log/' does not exist!")
+
+            # Rotating file handler
+            file_handler = RotatingFileHandler(full_log_path, maxBytes=max_bytes, backupCount=backup_count)
             file_handler.setLevel(level)
 
-            # Create a console handler
+            # Console handler
             console_handler = logging.StreamHandler()
             console_handler.setLevel(level)
 
-            # Create a formatter and set it for both handlers
+            # Formatter
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             file_handler.setFormatter(formatter)
             console_handler.setFormatter(formatter)
 
-            # Add the handlers to the logger
+            # Add handlers
             self.logger.addHandler(file_handler)
             self.logger.addHandler(console_handler)
 
