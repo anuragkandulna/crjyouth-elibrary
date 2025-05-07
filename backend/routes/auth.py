@@ -1,3 +1,4 @@
+from functools import wraps
 from flask import Blueprint, request, jsonify
 import jwt
 import datetime
@@ -9,7 +10,7 @@ from constants.config import JWT_SECRET_KEY
 from utils.my_logger import CustomLogger
 
 
-# nonce and blueprints
+# Defined variables
 nonce_store = {}
 auth_bp = Blueprint('auth_bp', __name__)
 LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_application.log').get_logger()
@@ -28,78 +29,72 @@ def validate_nonce(nonce):
     return False
 
 
-# Middleware for token validation
-def token_required(f):
-    def wrapper(*args, **kwargs):
-        token = None
-
-        # Extract token from the Authorization header
-        if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split(" ")[1]
-
-        if not token:
-            return jsonify({"error": "Token is missing!"}), 401
-
-        try:
-            # Decode and verify the token
-            decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-            request.user = decoded_data  # Attach user data to the request
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token has expired!"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token!"}), 401
-
-        return f(*args, **kwargs)
-
-    wrapper.__name__ = f.__name__
-    return wrapper
-
-
-# Role-based access control (RBAC) decorator
-def role_required(allowed_roles):
-    def decorator(f):
-        def wrapper(*args, **kwargs):
-            token = None
-            if 'Authorization' in request.headers:
-                token = request.headers['Authorization'].split(" ")[1]
-
-            if not token:
-                return jsonify({"error": "Token is missing!"}), 401
-
-            try:
-                decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-                role = decoded_data.get("role")
-                if not role:
-                    return jsonify({"error": "Role not found in token!"}), 401
-
-                if role not in allowed_roles:
-                    return jsonify({"error": "Access forbidden!"}), 403
-
-                if decoded_data["role"] not in allowed_roles:
-                    return jsonify({"error": "Access forbidden!"}), 403
-                request.user = decoded_data
-            except jwt.ExpiredSignatureError:
-                return jsonify({"error": "Token has expired!"}), 401
-            except jwt.InvalidTokenError:
-                return jsonify({"error": "Invalid token!"}), 401
-
-            return f(*args, **kwargs)
-
-        wrapper.__name__ = f.__name__
-        return wrapper
-    return decorator
-
-
 # Generate JWT token
 def generate_token(user):
     """Generate JWT token for a user."""
     payload = {
         "user_id": user.user_id,
         "email": user.email,
-        "role": user.role,
+        "role": user.user_role.role,
         "exp": datetime.datetime.now() + datetime.timedelta(hours=12),
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+
+
+# Middleware for token validation
+def token_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else None
+
+        if not token:
+            return jsonify({"error": "Token is missing!"}), 401
+
+        try:
+            decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+            request.user = decoded_data
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token has expired!"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token!"}), 401
+
+        return f(*args, **kwargs)
+    return wrapper
+
+
+# Role-based access control (RBAC) decorator
+def role_required(allowed_roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return jsonify({"error": "Token is missing!"}), 401
+
+            token = auth_header.split(" ")[1]
+
+            try:
+                decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+                role = decoded_data.get("role")
+
+                if not role:
+                    return jsonify({"error": "Role not found in token!"}), 401
+
+                if role not in allowed_roles:
+                    return jsonify({"error": "Access forbidden!"}), 403
+
+                request.user = decoded_data  # Attach user info to the request object
+                LOGGER.info(f"Access granted for role '{role}' to endpoint '{f.__name__}'")
+                return f(*args, **kwargs)
+
+            except jwt.ExpiredSignatureError:
+                return jsonify({"error": "Token has expired!"}), 401
+            except jwt.InvalidTokenError:
+                return jsonify({"error": "Invalid token!"}), 401
+
+        return wrapper
+    return decorator
 
 
 # Route to fetch a nonce
@@ -111,33 +106,31 @@ def get_nonce():
 
 
 # Register API
-# @auth_bp.route('/api/v1/register', methods=['POST'])
-# def register():
-#     session = get_session()
-#     data = request.json
-#     try:
-#         user = LibraryUser(
-#             first_name=data['first_name'],
-#             last_name=data['last_name'],
-#             email=data['email'],
-#             phone_number=data.get('phone_number'),
-#             role=data.get('role', 3)  # Default to Member role
-#         )
-#         user.set_password(data['password'])  # Hash the password
-#         session.add(user)
-#         session.commit()
-#         return jsonify({"message": "User registered successfully."}), 201
-#     except Exception as e:
-#         session.rollback()
-#         return jsonify({"error": str(e)}), 400
-#     finally:
-#         session.close()
+@auth_bp.route('/api/v1/register', methods=['POST'])
+@role_required(['Admin', 'Moderator'])
+def register():
+    data = request.json
+    try:
+        new_user = LibraryUser.create_user(
+            db_session,
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            email=data['email'],
+            phone_number=data.get('phone_number'),
+            password=data.get('password'),
+            membership_type=data.get('membership')
+        )
+        return jsonify({"message": f"User registered successfully: {new_user.user_id}"}), 201
+    except Exception as ex:
+        db_session.rollback()
+        return jsonify({"error": str(ex)}), 400
+    finally:
+        db_session.close()
 
 
 # Login API
 @auth_bp.route('/api/v1/login', methods=['POST'])
 def login():
-    # session = db_session
     data = request.json
 
     try:
