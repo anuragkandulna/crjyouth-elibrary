@@ -38,3 +38,6 @@ STATUS_CODE_CATEGORY = [
     "USER",
     "BOOK"
 ]
+
+OPS_LOG_FILE = 'crjyouth_operations.log'
+APP_LOG_FILE = 'crjyouth_application.log'
