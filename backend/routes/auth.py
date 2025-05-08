@@ -2,8 +2,6 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, make_response
 import jwt
 import datetime
-import random
-import string
 import secrets
 import re
 from models.library_user import LibraryUser
@@ -20,7 +18,7 @@ LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 
 # Generate a secure nonce
 def generate_nonce():
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(64)
 
 # Validate nonce
 def validate_nonce(nonce):
@@ -39,7 +37,7 @@ def validate_strong_password(password, name_fields):
         return False
     if not re.search(r"[0-9]", password):
         return False
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>\"]", password):
         return False
     for field in name_fields:
         if field and field.lower() in password.lower():
@@ -82,7 +80,6 @@ def token_required(f):
     return wrapper
 
 # Role-based access control
-
 def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
@@ -147,17 +144,10 @@ def login():
             return jsonify({"error": "Invalid or expired nonce."}), 401
 
         user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
-        if not user:
+        if not user or not user.check_password(data['password']):
             return jsonify({"error": "Invalid email or password."}), 401
 
-        if not user.check_password(data['password']):
-            return jsonify({"error": "Invalid email or password."}), 401
-
-        if user.email in user_token_cache:
-            token = user_token_cache[user.email]
-        else:
-            token = generate_login_token(user)
-
+        token = user_token_cache.get(user.email) or generate_login_token(user)
         response = make_response(jsonify({"message": "Login successful."}))
         response.set_cookie('session_token', token, httponly=True, samesite='Strict', secure=True)
         LOGGER.info(f"User '{user.email}' logged in successfully.")
@@ -170,8 +160,8 @@ def login():
     finally:
         db_session.close()
 
-# Password reset - Authenticated
-@auth_bp.route('/api/v1/account/reset-password', methods=['POST'])
+# Authenticated password reset
+@auth_bp.route('/api/v1/account/reset-password', methods=['PUT'])
 @token_required
 def reset_password_authenticated():
     data = request.json
@@ -179,9 +169,7 @@ def reset_password_authenticated():
         user_email = request.user['email']
         user = db_session.query(LibraryUser).filter_by(email=user_email).first()
 
-        password1 = data.get("password1")
-        password2 = data.get("password2")
-
+        password1, password2 = data.get("password1"), data.get("password2")
         if password1 != password2:
             return jsonify({"error": "Passwords do not match."}), 400
 
@@ -199,33 +187,32 @@ def reset_password_authenticated():
     finally:
         db_session.close()
 
-# Generate password reset token
+# Password reset request (unauthenticated)
 @auth_bp.route('/api/v1/account/password-reset-request', methods=['POST'])
 def password_reset_request():
     data = request.json
     try:
         email = data.get('email')
-        secure_token = secrets.token_urlsafe(32)
+        secure_token = secrets.token_urlsafe(64)
         reset_token = jwt.encode({
             "email": email,
             "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
         }, JWT_SECRET_KEY, algorithm="HS256")
 
-        # Here: Send reset_token via email logic should be placed
-        LOGGER.info(f"Password reset token generated for email: {email}")
+        # TODO: Send reset_token via email using email sending utility
+        LOGGER.info(f"Password reset token generated and sent to: {email}")
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
     except Exception as ex:
         LOGGER.error(f"Password reset request failed: {ex}")
         return jsonify({"error": "Password reset failed."}), 400
 
-# Reset password via token
-@auth_bp.route('/api/v1/account/password-reset-confirm', methods=['POST'])
+# Reset password via token (unauthenticated)
+@auth_bp.route('/api/v1/account/password-reset-confirm', methods=['PUT'])
 def password_reset_confirm():
     data = request.json
     try:
         token = data.get("token")
-        password1 = data.get("password1")
-        password2 = data.get("password2")
+        password1, password2 = data.get("password1"), data.get("password2")
 
         if password1 != password2:
             return jsonify({"error": "Passwords do not match."}), 400
