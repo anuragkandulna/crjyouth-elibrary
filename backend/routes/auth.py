@@ -7,13 +7,14 @@ import string
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
 from constants.config import JWT_SECRET_KEY
+from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
 
 
 # Defined variables
 nonce_store = {}
 auth_bp = Blueprint('auth_bp', __name__)
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_application.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 
 
 # Generate a unique nonce
