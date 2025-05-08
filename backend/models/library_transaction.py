@@ -3,14 +3,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime, timedelta
 import random
 import uuid
-from constants.constants import TOKEN_PRICES, DEFAULT_EXTENSION_FEE, DEFAULT_DAMAGE_FEE, EXTENSION_DAYS
+from constants.constants import TOKEN_PRICES, DEFAULT_EXTENSION_FEE, DEFAULT_DAMAGE_FEE, EXTENSION_DAYS, OPS_LOG_FILE
 from models.base import Base
 from models.library_user import LibraryUser
 from models.book_copy import BookCopy
 from utils.my_logger import CustomLogger
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_operations.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
 
 
 class LibraryTransaction(Base):
