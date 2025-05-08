@@ -5,9 +5,10 @@ from models.base import Base
 from models.book import Book
 from models.library_office import LibraryOffice
 from utils.my_logger import CustomLogger
+from constants.constants import OPS_LOG_FILE
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_operations.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
 
 
 class BookCopy(Base):
