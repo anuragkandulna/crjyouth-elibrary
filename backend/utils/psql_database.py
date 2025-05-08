@@ -1,11 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from constants.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_USER
+from constants.constants import OPS_LOG_FILE
 from utils.my_logger import CustomLogger
 
 
 # Invoke logger
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_operations.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
 DATABASE_URI = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}"
 
 
