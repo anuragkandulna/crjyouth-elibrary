@@ -13,9 +13,10 @@ from models.book import Book
 from models.book_copy import BookCopy
 from models.status_codes import StatusCode
 from utils.my_logger import CustomLogger
+from constants.constants import APP_LOG_FILE
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_application.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 
 
 if __name__ == "__main__":
