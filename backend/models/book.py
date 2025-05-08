@@ -3,14 +3,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime
 import uuid
 from typing import Optional
-from constants.constants import LANGUAGES, BOOK_TYPE
+from constants.constants import LANGUAGES, BOOK_TYPE, OPS_LOG_FILE
 from models.base import Base
 from models.author import Author
 from models.publisher import Publisher
 from utils.my_logger import CustomLogger
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_operations.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
 
 
 class Book(Base):
