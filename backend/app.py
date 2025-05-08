@@ -4,16 +4,38 @@ Start application here.
 
 from flask import Flask
 from flask_cors import CORS
+from flask_mail import Mail
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from routes.auth import auth_bp
-from constants.constants import APP_LOG_FILE
-# from routes.project import project_bp
+from constants.constants import (
+    APP_LOG_FILE,
+    CRJYOUTH_MAIL_SUPPORT,
+)
 
 # -------------------------------
 # Initialize Flask app
 # -------------------------------
 app = Flask(__name__)
+
+# -------------------------------
+# Mail Configuration (default: support)
+# -------------------------------
+# app.config['MAIL_SERVER'] = 'smtp.secureserver.net'
+app.config['MAIL_SERVER'] = 'smtp.secureserver.net'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_TLS'] = False
+app.config['MAIL_USE_SSL'] = True
+# app.config['MAIL_USERNAME'] = 'akandulna@crjyouth.in'
+app.config['MAIL_USERNAME'] = 'email@email.com'
+app.config['MAIL_PASSWORD'] = 'random'  # Replace with your actual app password
+app.config['MAIL_DEFAULT_SENDER'] = CRJYOUTH_MAIL_SUPPORT
+
+# -------------------------------
+# Initialize Mail
+# -------------------------------
+from routes.auth import mail
+mail.init_app(app)
 
 # -------------------------------
 # Argon2 Configuration (4GB RAM, 1-core CPU)
