@@ -7,6 +7,7 @@ from flask_cors import CORS
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from routes.auth import auth_bp
+from constants.constants import APP_LOG_FILE
 # from routes.project import project_bp
 
 # -------------------------------
@@ -31,7 +32,7 @@ argon2.init_app(app)
 # -------------------------------
 # Logger and CORS Setup
 # -------------------------------
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_application.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -------------------------------
