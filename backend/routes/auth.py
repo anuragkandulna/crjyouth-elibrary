@@ -8,12 +8,13 @@ import re
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
 from constants.config import JWT_SECRET_KEY
-from constants.constants import APP_LOG_FILE
+from constants.constants import APP_LOG_FILE, CRJYOUTH_MAIL_SUPPORT
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, check_password_hash
 
 # Defined variables
 nonce_store = {}
+user_token_cache = {}
 auth_bp = Blueprint('auth_bp', __name__)
 LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 
@@ -24,13 +25,15 @@ mail = Mail()
 
 # -------------------- Utility Functions -------------------- #
 def generate_nonce():
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(64)
+
 
 def validate_nonce(nonce):
     if nonce in nonce_store:
         del nonce_store[nonce]
         return True
     return False
+
 
 def validate_strong_password(password, name_fields):
     if len(password) < 12:
@@ -48,7 +51,6 @@ def validate_strong_password(password, name_fields):
             return False
     return True
 
-user_token_cache = {}
 
 def generate_login_token(user):
     payload = {
@@ -60,6 +62,7 @@ def generate_login_token(user):
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
     user_token_cache[user.email] = token
     return token
+
 
 # -------------------- Decorators -------------------- #
 def token_required(f):
@@ -81,6 +84,7 @@ def token_required(f):
 
         return f(*args, **kwargs)
     return wrapper
+
 
 def role_required(allowed_roles):
     def decorator(f):
@@ -109,6 +113,7 @@ def role_required(allowed_roles):
 
         return wrapper
     return decorator
+
 
 # -------------------- Routes -------------------- #
 @auth_bp.route('/api/v1/nonce', methods=['GET'])
@@ -144,6 +149,7 @@ def register():
     finally:
         db_session.close()
 
+
 @auth_bp.route('/api/v1/account/login', methods=['POST'])
 def login():
     data = request.json
@@ -166,6 +172,7 @@ def login():
         return jsonify({"error": "Login failed due to internal error."}), 500
     finally:
         db_session.close()
+
 
 @auth_bp.route('/api/v1/account/reset-password', methods=['PUT'])
 @token_required
@@ -195,6 +202,7 @@ def reset_password_authenticated():
     finally:
         db_session.close()
 
+
 @auth_bp.route('/api/v1/account/password-reset-request', methods=['POST'])
 def password_reset_request():
     data = request.json
@@ -219,6 +227,7 @@ def password_reset_request():
     except Exception as ex:
         LOGGER.error(f"Password reset request failed: {ex}")
         return jsonify({"error": "Password reset failed."}), 400
+
 
 @auth_bp.route('/api/v1/account/password-reset-confirm', methods=['PUT'])
 def password_reset_confirm():
