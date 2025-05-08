@@ -218,7 +218,8 @@ def password_reset_request():
         msg = Message(
             subject="CRJ Youth Library Password Reset",
             recipients=[email],
-            body=f"To reset your password, visit: https://crjyouth.in/reset-password?token={reset_token}"
+            body=f"To reset your password, visit: https://crjyouth.in/reset-password?token={reset_token}",
+            sender=CRJYOUTH_MAIL_SUPPORT
         )
         mail.send(msg)
 
@@ -259,3 +260,23 @@ def password_reset_confirm():
         return jsonify({"error": "Password reset failed."}), 400
     finally:
         db_session.close()
+
+
+@auth_bp.route('/test', methods=['POST'])
+def email_test():
+    data = request.json
+    try:
+        email = data['email']
+        msg = Message(
+            subject="TEST EMAIL",
+            recipients=[email],
+            body="test email. ignore",
+            sender=CRJYOUTH_MAIL_SUPPORT
+        )
+        mail.send(msg)
+        LOGGER.info("Test email sent.")
+        return jsonify({'message': 'Test email sent'}), 200
+        
+    except Exception as ex:
+        LOGGER.error(f'Test email failed: {ex}')
+        return jsonify({'error': 'Test email failed'}), 400
