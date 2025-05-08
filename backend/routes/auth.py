@@ -111,6 +111,12 @@ def role_required(allowed_roles):
     return decorator
 
 # -------------------- Routes -------------------- #
+@auth_bp.route('/api/v1/nonce', methods=['GET'])
+def get_nonce():
+    nonce = generate_nonce()
+    nonce_store[nonce] = True
+    return jsonify({"nonce": nonce}), 200
+
 
 @auth_bp.route('/api/v1/account/register', methods=['POST'])
 @role_required(['Admin', 'Moderator'])

@@ -28,7 +28,7 @@ TOKEN_PRICES = {
     'L2': 150.0
 }
 
-DEFAULT_EXTENSION_FEE = 30.0
+DEFAULT_EXTENSION_FEE = 10.0
 DEFAULT_DAMAGE_FEE = 100.0
 EXTENSION_DAYS = 7
 
@@ -39,5 +39,12 @@ STATUS_CODE_CATEGORY = [
     "BOOK"
 ]
 
+# Log files
 OPS_LOG_FILE = 'crjyouth_operations.log'
 APP_LOG_FILE = 'crjyouth_application.log'
+
+# Business email addresses
+CRJYOUTH_MAIL_ADMIN = 'admin@crjyouth.in'
+CRJYOUTH_MAIL_SUPPORT = 'support@crjyouth.in'
+CRJYOUTH_MAIL_NO_REPLY = 'no-reply@crjyouth.in'
+CRJYOUTH_MAIL_INFO = 'info@crjyouth.in'
