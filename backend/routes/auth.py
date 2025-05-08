@@ -1,58 +1,66 @@
 from functools import wraps
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 import jwt
 import datetime
 import random
 import string
+import secrets
+import re
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
 from constants.config import JWT_SECRET_KEY
 from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
-
+from utils.security import generate_password_hash, check_password_hash
 
 # Defined variables
 nonce_store = {}
 auth_bp = Blueprint('auth_bp', __name__)
 LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
 
-
-# Generate a unique nonce
+# Generate a secure nonce
 def generate_nonce():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+    return secrets.token_urlsafe(32)
 
-
-# Validate nonce (Prevent replay attacks)
+# Validate nonce
 def validate_nonce(nonce):
     if nonce in nonce_store:
-        del nonce_store[nonce]  # Invalidate nonce after use
+        del nonce_store[nonce]
         return True
     return False
 
+# Validate strong password policy
+def validate_strong_password(password, name_fields):
+    if len(password) < 12:
+        return False
+    if not re.search(r"[A-Z]", password):
+        return False
+    if not re.search(r"[a-z]", password):
+        return False
+    if not re.search(r"[0-9]", password):
+        return False
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False
+    for field in name_fields:
+        if field and field.lower() in password.lower():
+            return False
+    return True
 
-# Generate Login JWT token
+# Generate login JWT token
+user_token_cache = {}
+
 def generate_login_token(user):
-    """Generate Login JWT token for a user."""
     payload = {
         "user_id": user.user_id,
         "email": user.email,
         "role": user.user_role.role,
-        "exp": datetime.datetime.now() + datetime.timedelta(hours=12),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)
     }
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+    token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+    user_token_cache[user.email] = token
+    return token
 
-
-# Generate Password reset request JWT token
-def generate_short_lived_token(email):
-    """Generate short lived token for password reset request."""
-    payload = {
-        "email": email,
-        "exp": datetime.datetime.now() + datetime.timedelta(minutes=30)
-    }
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
-
-
-# Middleware for token validation
+# Token required middleware
 def token_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -73,30 +81,26 @@ def token_required(f):
         return f(*args, **kwargs)
     return wrapper
 
+# Role-based access control
 
-# Role-based access control (RBAC) decorator
 def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
             auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return jsonify({"error": "Token is missing!"}), 401
+            token = auth_header.split(" ")[1] if auth_header and auth_header.startswith("Bearer ") else None
 
-            token = auth_header.split(" ")[1]
+            if not token:
+                return jsonify({"error": "Token is missing!"}), 401
 
             try:
                 decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
                 role = decoded_data.get("role")
 
-                if not role:
-                    return jsonify({"error": "Role not found in token!"}), 401
-
-                if role not in allowed_roles:
+                if not role or role not in allowed_roles:
                     return jsonify({"error": "Access forbidden!"}), 403
 
-                request.user = decoded_data  # Attach user info to the request object
-                LOGGER.info(f"Access granted for role '{role}' to endpoint '{f.__name__}'")
+                request.user = decoded_data
                 return f(*args, **kwargs)
 
             except jwt.ExpiredSignatureError:
@@ -107,28 +111,23 @@ def role_required(allowed_roles):
         return wrapper
     return decorator
 
-
-# Route to fetch a nonce
-@auth_bp.route('/api/v1/nonce', methods=['GET'])
-def get_nonce():
-    nonce = generate_nonce()
-    nonce_store[nonce] = True  # Store nonce temporarily
-    return jsonify({"nonce": nonce}), 200
-
-
-# Register API
-@auth_bp.route('/api/v1/register', methods=['POST'])
+# Register new user
+@auth_bp.route('/api/v1/account/register', methods=['POST'])
 @role_required(['Admin', 'Moderator'])
 def register():
     data = request.json
     try:
+        password = data.get('password')
+        if not validate_strong_password(password, [data['first_name'], data['last_name'], data['email'], data.get('phone_number', '')]):
+            return jsonify({"error": "Password does not meet policy requirements."}), 400
+
         new_user = LibraryUser.create_user(
             db_session,
             first_name=data['first_name'],
             last_name=data['last_name'],
             email=data['email'],
             phone_number=data.get('phone_number'),
-            password=data.get('password'),
+            password=password,
             membership_type=data.get('membership')
         )
         return jsonify({"message": f"User registered successfully: {new_user.user_id}"}), 201
@@ -139,64 +138,114 @@ def register():
     finally:
         db_session.close()
 
-
-# Login API
-@auth_bp.route('/api/v1/login', methods=['POST'])
+# Login
+@auth_bp.route('/api/v1/account/login', methods=['POST'])
 def login():
     data = request.json
-
     try:
-        # Validate nonce if used
-        if not validate_nonce(nonce=data.get('nonce', '')):
+        if not validate_nonce(data.get('nonce', '')):
             return jsonify({"error": "Invalid or expired nonce."}), 401
 
-        # Fetch user by email
         user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
         if not user:
-            return jsonify({"error": "User not found."}), 404
+            return jsonify({"error": "Invalid email or password."}), 401
 
-        # Check password using ORM method
         if not user.check_password(data['password']):
             return jsonify({"error": "Invalid email or password."}), 401
 
-        # Generate auth token
-        token = generate_login_token(user)
+        if user.email in user_token_cache:
+            token = user_token_cache[user.email]
+        else:
+            token = generate_login_token(user)
+
+        response = make_response(jsonify({"message": "Login successful."}))
+        response.set_cookie('session_token', token, httponly=True, samesite='Strict', secure=True)
         LOGGER.info(f"User '{user.email}' logged in successfully.")
-        return jsonify({"message": "Login successful.", "token": token}), 200
+        return response
 
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"Login failed: {ex}")
-        return jsonify({"error": "Login failed due to an internal error."}), 500
-
+        return jsonify({"error": "Login failed due to internal error."}), 500
     finally:
         db_session.close()
 
+# Password reset - Authenticated
+@auth_bp.route('/api/v1/account/reset-password', methods=['POST'])
+@token_required
+def reset_password_authenticated():
+    data = request.json
+    try:
+        user_email = request.user['email']
+        user = db_session.query(LibraryUser).filter_by(email=user_email).first()
 
-# Password reset request API
-@auth_bp.route('/api/v1/password-reset-request', methods=['POST'])
+        password1 = data.get("password1")
+        password2 = data.get("password2")
+
+        if password1 != password2:
+            return jsonify({"error": "Passwords do not match."}), 400
+
+        if not validate_strong_password(password1, [user.first_name, user.last_name, user.email, user.phone_number]):
+            return jsonify({"error": "Password does not meet policy requirements."}), 400
+
+        user.password_hash = generate_password_hash(password1)
+        db_session.commit()
+        LOGGER.info(f"User '{user.email}' successfully reset password.")
+        return jsonify({"message": "Password updated successfully."}), 200
+    except Exception as ex:
+        db_session.rollback()
+        LOGGER.error(f"Password reset failed: {ex}")
+        return jsonify({"error": "Password reset failed."}), 500
+    finally:
+        db_session.close()
+
+# Generate password reset token
+@auth_bp.route('/api/v1/account/password-reset-request', methods=['POST'])
 def password_reset_request():
     data = request.json
-
     try:
-        token = generate_short_lived_token(email=data['email'])
+        email = data.get('email')
+        secure_token = secrets.token_urlsafe(32)
+        reset_token = jwt.encode({
+            "email": email,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+        }, JWT_SECRET_KEY, algorithm="HS256")
 
+        # Here: Send reset_token via email logic should be placed
+        LOGGER.info(f"Password reset token generated for email: {email}")
+        return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
     except Exception as ex:
-        LOGGER.error(f"Sending password request failed: {ex}")
-        return jsonify({'error': 'Bad request'}), 400
+        LOGGER.error(f"Password reset request failed: {ex}")
+        return jsonify({"error": "Password reset failed."}), 400
 
+# Reset password via token
+@auth_bp.route('/api/v1/account/password-reset-confirm', methods=['POST'])
+def password_reset_confirm():
+    data = request.json
+    try:
+        token = data.get("token")
+        password1 = data.get("password1")
+        password2 = data.get("password2")
 
-# Protected API (example)
-@auth_bp.route('/api/v1/protected', methods=['GET'])
-@token_required
-def protected_route():
-    user_data = request.user
-    return jsonify({"message": "Welcome!", "user": user_data}), 200
+        if password1 != password2:
+            return jsonify({"error": "Passwords do not match."}), 400
 
+        decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        email = decoded_data.get("email")
+        user = db_session.query(LibraryUser).filter_by(email=email).first()
 
-# Role-protected API (example)
-@auth_bp.route('/api/v1/admin', methods=['GET'])
-@token_required
-@role_required([1])
-def admin_route():
-    return jsonify({"message": "Welcome, Admin!"}), 200
+        if not validate_strong_password(password1, [user.first_name, user.last_name, user.email, user.phone_number]):
+            return jsonify({"error": "Password does not meet policy requirements."}), 400
+
+        user.password_hash = generate_password_hash(password1)
+        db_session.commit()
+        LOGGER.info(f"User '{email}' password successfully updated via reset.")
+        return jsonify({"message": "Password reset successful."}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Reset token expired."}), 400
+    except Exception as ex:
+        db_session.rollback()
+        LOGGER.error(f"Password reset failed: {ex}")
+        return jsonify({"error": "Password reset failed."}), 400
+    finally:
+        db_session.close()
