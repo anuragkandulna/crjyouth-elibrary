@@ -11,9 +11,10 @@ from models.library_membership import LibraryMembership
 from models.status_codes import StatusCode
 from utils.security import generate_password_hash, check_password_hash 
 from utils.my_logger import CustomLogger
+from constants.constants import OPS_LOG_FILE
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file='crjyouth_operations.log').get_logger()
+LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
 
 
 class LibraryUser(Base):
