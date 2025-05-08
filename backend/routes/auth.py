@@ -30,14 +30,24 @@ def validate_nonce(nonce):
     return False
 
 
-# Generate JWT token
-def generate_token(user):
-    """Generate JWT token for a user."""
+# Generate Login JWT token
+def generate_login_token(user):
+    """Generate Login JWT token for a user."""
     payload = {
         "user_id": user.user_id,
         "email": user.email,
         "role": user.user_role.role,
         "exp": datetime.datetime.now() + datetime.timedelta(hours=12),
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+
+
+# Generate Password reset request JWT token
+def generate_short_lived_token(email):
+    """Generate short lived token for password reset request."""
+    payload = {
+        "email": email,
+        "exp": datetime.datetime.now() + datetime.timedelta(minutes=30)
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
@@ -150,7 +160,7 @@ def login():
             return jsonify({"error": "Invalid email or password."}), 401
 
         # Generate auth token
-        token = generate_token(user)
+        token = generate_login_token(user)
         LOGGER.info(f"User '{user.email}' logged in successfully.")
         return jsonify({"message": "Login successful.", "token": token}), 200
 
@@ -161,6 +171,19 @@ def login():
 
     finally:
         db_session.close()
+
+
+# Password reset request API
+@auth_bp.route('/api/v1/password-reset-request', methods=['POST'])
+def password_reset_request():
+    data = request.json
+
+    try:
+        token = generate_short_lived_token(email=data['email'])
+
+    except Exception as ex:
+        LOGGER.error(f"Sending password request failed: {ex}")
+        return jsonify({'error': 'Bad request'}), 400
 
 
 # Protected API (example)
