@@ -1,11 +1,11 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy import String, Integer, Boolean
 from models.base import Base
-from constants.constants import STATUS_CODE_CATEGORY
+from constants.constants import STATUS_CODE_CATEGORY, OPS_LOG_FILE
 from utils.my_logger import CustomLogger
 
 
-LOGGER = CustomLogger(__name__, level=10, log_file="crjyouth_operations.log").get_logger()
+LOGGER = CustomLogger(__name__, level=10, log_file=OPS_LOG_FILE).get_logger()
 
 
 class StatusCode(Base):
