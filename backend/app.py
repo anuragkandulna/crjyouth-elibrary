@@ -21,14 +21,12 @@ app = Flask(__name__)
 # -------------------------------
 # Mail Configuration (default: support)
 # -------------------------------
-# app.config['MAIL_SERVER'] = 'smtp.secureserver.net'
-app.config['MAIL_SERVER'] = 'smtp.secureserver.net'
+app.config['MAIL_SERVER'] = 'smtpout.secureserver.net'
 app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
-# app.config['MAIL_USERNAME'] = 'akandulna@crjyouth.in'
-app.config['MAIL_USERNAME'] = 'email@email.com'
-app.config['MAIL_PASSWORD'] = 'random'  # Replace with your actual app password
+app.config['MAIL_USE_TLS'] = False  
+app.config['MAIL_USERNAME'] = 'akandulna@crjyouth.in'
+app.config['MAIL_PASSWORD'] = 'some_pass'
 app.config['MAIL_DEFAULT_SENDER'] = CRJYOUTH_MAIL_SUPPORT
 
 # -------------------------------
