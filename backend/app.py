@@ -4,9 +4,9 @@ Start application here.
 
 from flask import Flask
 from flask_cors import CORS
-from flask_mail import Mail
 from utils.security import argon2
 from utils.my_logger import CustomLogger
+from utils.mail_setup import mail
 from routes.auth import auth_bp
 from constants.constants import APP_LOG_FILE
 from constants.config import SMTP_HOST, SMTP_PORT, SMTP_USE_SSL, SMTP_USE_TLS, SMTP_USER, SMTP_PASSWORD, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
@@ -31,7 +31,6 @@ app.config['MAIL_DEFAULT_SENDER'] = CRJYOUTH_MAIL_SUPPORT
 # -------------------------------
 # Initialize Mail
 # -------------------------------
-from routes.auth import mail
 mail.init_app(app)
 
 # -------------------------------
