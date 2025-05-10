@@ -8,10 +8,9 @@ from flask_mail import Mail
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from routes.auth import auth_bp
-from constants.constants import (
-    APP_LOG_FILE,
-    CRJYOUTH_MAIL_SUPPORT,
-)
+from constants.constants import APP_LOG_FILE
+from constants.config import SMTP_HOST, SMTP_PORT, SMTP_USE_SSL, SMTP_USE_TLS, SMTP_USER, SMTP_PASSWORD, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
+
 
 # -------------------------------
 # Initialize Flask app
@@ -21,12 +20,12 @@ app = Flask(__name__)
 # -------------------------------
 # Mail Configuration (default: support)
 # -------------------------------
-app.config['MAIL_SERVER'] = 'smtpout.secureserver.net'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USE_TLS'] = False  
-app.config['MAIL_USERNAME'] = 'akandulna@crjyouth.in'
-app.config['MAIL_PASSWORD'] = 'some_pass'
+app.config['MAIL_SERVER'] = SMTP_HOST
+app.config['MAIL_PORT'] = SMTP_PORT
+app.config['MAIL_USE_SSL'] = SMTP_USE_SSL
+app.config['MAIL_USE_TLS'] = SMTP_USE_TLS
+app.config['MAIL_USERNAME'] = SMTP_USER
+app.config['MAIL_PASSWORD'] = SMTP_PASSWORD
 app.config['MAIL_DEFAULT_SENDER'] = CRJYOUTH_MAIL_SUPPORT
 
 # -------------------------------
@@ -52,7 +51,7 @@ argon2.init_app(app)
 # -------------------------------
 # Logger and CORS Setup
 # -------------------------------
-LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -------------------------------
