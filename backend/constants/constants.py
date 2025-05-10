@@ -43,8 +43,3 @@ STATUS_CODE_CATEGORY = [
 OPS_LOG_FILE = 'crjyouth_operations.log'
 APP_LOG_FILE = 'crjyouth_application.log'
 
-# Business email addresses
-CRJYOUTH_MAIL_ADMIN = 'admin@crjyouth.in'
-CRJYOUTH_MAIL_SUPPORT = 'support@crjyouth.in'
-CRJYOUTH_MAIL_NO_REPLY = 'no-reply@crjyouth.in'
-CRJYOUTH_MAIL_INFO = 'info@crjyouth.in'
