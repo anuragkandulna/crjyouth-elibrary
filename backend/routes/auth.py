@@ -1,6 +1,7 @@
 from functools import wraps
 from flask import Blueprint, request, jsonify, make_response
 from flask_mail import Mail, Message
+from email.mime.text import MIMEText
 import jwt
 import datetime
 import secrets
@@ -17,10 +18,6 @@ nonce_store = {}
 user_token_cache = {}
 auth_bp = Blueprint('auth_bp', __name__)
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
-
-# Flask-Mail setup
-from flask import current_app
-mail = Mail()
 
 
 # -------------------- Utility Functions -------------------- #
