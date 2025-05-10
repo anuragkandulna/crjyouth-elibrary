@@ -7,8 +7,8 @@ import secrets
 import re
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
-from constants.config import JWT_SECRET_KEY
-from constants.constants import APP_LOG_FILE, CRJYOUTH_MAIL_SUPPORT
+from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
+from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, check_password_hash
 
@@ -16,7 +16,7 @@ from utils.security import generate_password_hash, check_password_hash
 nonce_store = {}
 user_token_cache = {}
 auth_bp = Blueprint('auth_bp', __name__)
-LOGGER = CustomLogger(__name__, level=20, log_file=APP_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 # Flask-Mail setup
 from flask import current_app
