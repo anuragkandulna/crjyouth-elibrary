@@ -24,6 +24,10 @@ SMTP_USE_TLS = os.getenv('SMTP_USE_TLS')
 SMTP_USER = os.getenv('SMTP_USER')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
+# IMAP
+IMAP_HOST = os.getenv('IMAP_HOST')
+IMAP_PORT = os.getenv('IMAP_PORT')
+
 # Emails
 CRJYOUTH_MAIL_ADMIN = os.getenv('CRJYOUTH_MAIL_ADMIN')
 CRJYOUTH_MAIL_SUPPORT = os.getenv('CRJYOUTH_MAIL_SUPPORT')
@@ -66,6 +70,12 @@ if not SMTP_USER:
 
 if not SMTP_PASSWORD:
     raise ValueError('SMTP_PASSWORD not found in .env file.')
+
+if not IMAP_HOST:
+    raise ValueError('IMAP_HOST not found in .env file.')
+
+if not IMAP_PORT:
+    raise ValueError('IMAP_PORT not found in .env file.')
 
 if not CRJYOUTH_MAIL_ADMIN:
     raise ValueError('CRJYOUTH_MAIL_ADMIN not found in .env file.')
