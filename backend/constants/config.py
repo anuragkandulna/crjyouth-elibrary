@@ -14,19 +14,19 @@ DB_HOST = os.getenv('DB_HOST')
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 
 # Logging
-LOG_LEVEL = os.getenv('LOG_LEVEL')
+LOG_LEVEL = int(os.getenv('LOG_LEVEL'))
 
 # SMTP 
 SMTP_HOST = os.getenv('SMTP_HOST')
-SMTP_PORT = os.getenv('SMTP_PORT')
-SMTP_USE_SSL = os.getenv('SMTP_USE_SSL')
-SMTP_USE_TLS = os.getenv('SMTP_USE_TLS')
+SMTP_PORT = int(os.getenv('SMTP_PORT'))
+# SMTP_USE_SSL = bool(os.getenv('SMTP_USE_SSL'))
+# SMTP_USE_TLS = bool(os.getenv('SMTP_USE_TLS'))
 SMTP_USER = os.getenv('SMTP_USER')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
 # IMAP
 IMAP_HOST = os.getenv('IMAP_HOST')
-IMAP_PORT = os.getenv('IMAP_PORT')
+IMAP_PORT = int(os.getenv('IMAP_PORT'))
 
 # Emails
 CRJYOUTH_MAIL_ADMIN = os.getenv('CRJYOUTH_MAIL_ADMIN')
@@ -59,11 +59,11 @@ if not SMTP_HOST:
 if not SMTP_PORT:
     raise ValueError('SMTP_PORT not found in .env file.')
 
-if not SMTP_USE_SSL:
-    raise ValueError('SMTP_USE_SSL not found in .env file.')
+# if not SMTP_USE_SSL:
+#     raise ValueError('SMTP_USE_SSL not found in .env file.')
 
-if not SMTP_USE_TLS:
-    raise ValueError('SMTP_USE_TLS not found in .env file.')
+# if not SMTP_USE_TLS:
+#     raise ValueError('SMTP_USE_TLS not found in .env file.')
 
 if not SMTP_USER:
     raise ValueError('SMTP_USER not found in .env file.')
