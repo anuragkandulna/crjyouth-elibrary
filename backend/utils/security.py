@@ -1,5 +1,5 @@
 from flask_argon2 import Argon2
-from flask import current_app
+# from flask import current_app
 
 # Initialize Argon2 (to be called from app.py)
 argon2 = Argon2()
