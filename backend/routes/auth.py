@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import Blueprint, request, jsonify, make_response
-from flask_mail import Mail, Message
+from flask_mail import Message
 from email.mime.text import MIMEText
 import jwt
 import datetime
@@ -12,6 +12,8 @@ from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
 from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, check_password_hash
+from utils.mail_setup import mail
+
 
 # Defined variables
 nonce_store = {}
