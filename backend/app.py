@@ -9,7 +9,7 @@ from utils.my_logger import CustomLogger
 from utils.mail_setup import mail
 from routes.auth import auth_bp
 from constants.constants import APP_LOG_FILE
-from constants.config import SMTP_HOST, SMTP_PORT, SMTP_USE_SSL, SMTP_USE_TLS, SMTP_USER, SMTP_PASSWORD, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
+from constants.config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
 
 
 # -------------------------------
@@ -20,6 +20,13 @@ app = Flask(__name__)
 # -------------------------------
 # Mail Configuration (default: support)
 # -------------------------------
+if SMTP_PORT == 465:
+    SMTP_USE_SSL = True
+    SMTP_USE_TLS = False
+else:
+    SMTP_USE_SSL = False
+    SMTP_USE_TLS = True
+
 app.config['MAIL_SERVER'] = SMTP_HOST
 app.config['MAIL_PORT'] = SMTP_PORT
 app.config['MAIL_USE_SSL'] = SMTP_USE_SSL
