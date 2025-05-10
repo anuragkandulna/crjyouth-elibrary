@@ -108,9 +108,9 @@ if __name__ == "__main__":
 
         # ------------------ Seed Users ------------------ #
         predefined_users = [
-            ("Fake", "Admin", "admin@crj.org", "1111111111", "J4j>$U13&]Cn", 1, 1),
-            ("Fake", "Mod", "mod@crj.org", "2222222222", "8D8*utJ$p9n8", 2, 2),
-            ("Fake", "Member", "member@crj.org", "3333333333", "c8z3*nN98y*#", 3, 5)
+            ("Admin", "User", "admin@textgpt.live", "1111111111", "J4j>$U13&]Cn", 1, 1),
+            ("Mod", "User", "mod@textgpt.live", "2222222222", "8D8*utJ$p9n8", 2, 2),
+            ("Member", "User", "member@textgpt.live", "3333333333", "c8z3*nN98y*#", 3, 5)
         ]
         for user_data in predefined_users:
             try:
