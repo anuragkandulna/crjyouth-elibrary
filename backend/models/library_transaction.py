@@ -8,9 +8,10 @@ from models.base import Base
 from models.library_user import LibraryUser
 from models.book_copy import BookCopy
 from utils.my_logger import CustomLogger
+from constants.config import LOG_LEVEL
 
 
-LOGGER = CustomLogger(__name__, level=20, log_file=OPS_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
 
 
 class LibraryTransaction(Base):
