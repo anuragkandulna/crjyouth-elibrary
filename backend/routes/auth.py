@@ -6,9 +6,11 @@ import jwt
 import datetime
 import secrets
 import re
+import imaplib
+import time
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
-from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL
+from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL, IMAP_HOST, IMAP_PORT, SMTP_USER, SMTP_PASSWORD
 from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, check_password_hash
@@ -265,17 +267,35 @@ def password_reset_confirm():
 def email_test():
     data = request.json
     try:
-        email = data['email']
+        recipient_email = data['email']
+        subject = "TEST EMAIL"
+        body = "This is a test email sent via Flask-Mail and saved to Sent folder."
+
+        # --- Send using Flask-Mail ---
         msg = Message(
-            subject="TEST EMAIL",
-            recipients=[email],
-            body="test email. ignore",
+            subject=subject,
+            recipients=[recipient_email],
+            body=body,
             sender=CRJYOUTH_MAIL_SUPPORT
         )
         mail.send(msg)
-        LOGGER.info("Test email sent.")
-        return jsonify({'message': 'Test email sent'}), 200
-        
+        LOGGER.info("Test email sent via Flask-Mail.")
+
+        # --- Also store in IMAP Sent folder ---
+        # Build MIMEText manually
+        mime_msg = MIMEText(body)
+        mime_msg['From'] = CRJYOUTH_MAIL_SUPPORT
+        mime_msg['To'] = recipient_email
+        mime_msg['Subject'] = subject
+
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        imap.login(SMTP_USER, SMTP_PASSWORD)
+        imap.append('Sent', '', imaplib.Time2Internaldate(time.time()), mime_msg.as_bytes())
+        imap.logout()
+
+        LOGGER.info("Email also appended to IMAP Sent folder.")
+        return jsonify({'message': 'Email sent and saved to Sent folder'}), 200
+
     except Exception as ex:
         LOGGER.error(f'Test email failed: {ex}')
-        return jsonify({'error': 'Test email failed'}), 400
+        return jsonify({'error': 'Email test failed'}), 400
