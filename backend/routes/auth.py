@@ -10,7 +10,7 @@ import imaplib
 import time
 from models.library_user import LibraryUser
 from utils.psql_database import db_session
-from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_SUPPORT, LOG_LEVEL, IMAP_HOST, IMAP_PORT, SMTP_USER, SMTP_PASSWORD
+from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL, IMAP_HOST, IMAP_PORT, SMTP_USER, SMTP_PASSWORD
 from constants.constants import APP_LOG_FILE
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, check_password_hash
@@ -58,7 +58,7 @@ def generate_login_token(user):
         "user_id": user.user_id,
         "email": user.email,
         "role": user.user_role.role,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)
+        "exp": datetime.datetime.now() + datetime.timedelta(hours=12)
     }
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
     user_token_cache[user.email] = token
@@ -209,10 +209,9 @@ def password_reset_request():
     data = request.json
     try:
         email = data.get('email')
-        secure_token = secrets.token_urlsafe(64)
         reset_token = jwt.encode({
             "email": email,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+            "exp": datetime.datetime.now() + datetime.timedelta(minutes=30)
         }, JWT_SECRET_KEY, algorithm="HS256")
 
         # Send email
@@ -220,11 +219,11 @@ def password_reset_request():
             subject="CRJ Youth Library Password Reset",
             recipients=[email],
             body=f"To reset your password, visit: https://crjyouth.in/reset-password?token={reset_token}",
-            sender=CRJYOUTH_MAIL_SUPPORT
+            sender=CRJYOUTH_MAIL_NO_REPLY
         )
         mail.send(msg)
 
-        LOGGER.info(f"Password reset token generated and emailed to: {email}")
+        LOGGER.info(f"Password reset token email sent.")
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
     except Exception as ex:
         LOGGER.error(f"Password reset request failed: {ex}")
