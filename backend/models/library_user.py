@@ -76,7 +76,7 @@ class LibraryUser(Base):
 
 
     def __repr__(self) -> str:
-        return f"<LibraryUser(user_id='{self.user_id}', name='{self.first_name} {self.last_name}', active={self.account_status})>"
+        return f"<LibraryUser(user_id='{self.user_id}', name='{self.first_name} {self.last_name}', active='{self.account_status}')>"
 
 
     # ------------------ CRUD Operations ------------------ #
