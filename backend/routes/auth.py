@@ -1,19 +1,17 @@
 from functools import wraps
 from flask import Blueprint, request, jsonify, make_response
 from flask_mail import Message
-from email.mime.text import MIMEText
 import jwt
 import datetime
 import secrets
 import re
-import imaplib
-import time
 from models.library_user import LibraryUser
-from utils.psql_database import db_session
-from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL, IMAP_HOST, IMAP_PORT, SMTP_USER, SMTP_PASSWORD
+from models.exceptions import DuplicateUserError
+from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
 from constants.constants import APP_LOG_FILE
+from utils.psql_database import db_session
 from utils.my_logger import CustomLogger
-from utils.security import generate_password_hash, check_password_hash
+from utils.security import generate_password_hash
 from utils.mail_setup import mail
 
 
@@ -130,7 +128,7 @@ def register():
     data = request.json
     try:
         password = data.get('password')
-        if not validate_strong_password(password, [data['first_name'], data['last_name'], data['email'], data.get('phone_number', '')]):
+        if not validate_strong_password(password, [data['first_name'], data['last_name'], data['phone_number'], data.get('email', '')]):
             return jsonify({"error": "Password does not meet policy requirements."}), 400
 
         new_user = LibraryUser.create_user(
@@ -142,7 +140,13 @@ def register():
             password=password,
             membership_type=data.get('membership')
         )
+        LOGGER.info(f"User '{new_user.user_id}' registration successfully.")
         return jsonify({"message": f"User registered successfully: {new_user.user_id}"}), 201
+
+    except DuplicateUserError as ex:
+        db_session.rollback()
+        LOGGER.error(f"Email or phone number already exists.")
+        return jsonify({"error": "Email or phone number exists."}), 409
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"User registration failed: {ex}")
@@ -165,8 +169,9 @@ def login():
         token = user_token_cache.get(user.email) or generate_login_token(user)
         response = make_response(jsonify({"message": "Login successful."}))
         response.set_cookie('session_token', token, httponly=True, samesite='Strict', secure=True)
-        LOGGER.info(f"User '{user.email}' logged in successfully.")
+        LOGGER.info(f"User '{user.user_id}' logged in successfully.")
         return response
+
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"Login failed: {ex}")
@@ -194,8 +199,9 @@ def reset_password_authenticated():
 
         user.password_hash = generate_password_hash(password1)
         db_session.commit()
-        LOGGER.info(f"User '{user.email}' successfully reset password.")
+        LOGGER.info(f"User '{user.user_id}' successfully reset password.")
         return jsonify({"message": "Password updated successfully."}), 200
+
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"Password reset failed: {ex}")
@@ -214,7 +220,7 @@ def password_reset_request():
             "exp": datetime.datetime.now() + datetime.timedelta(minutes=30)
         }, JWT_SECRET_KEY, algorithm="HS256")
 
-        # Send email
+        # Send email to user
         msg = Message(
             subject="CRJ Youth Library Password Reset",
             recipients=[email],
@@ -225,6 +231,7 @@ def password_reset_request():
 
         LOGGER.info(f"Password reset token email sent.")
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
+
     except Exception as ex:
         LOGGER.error(f"Password reset request failed: {ex}")
         return jsonify({"error": "Password reset failed."}), 400
@@ -250,8 +257,9 @@ def password_reset_confirm():
 
         user.password_hash = generate_password_hash(password1)
         db_session.commit()
-        LOGGER.info(f"User '{email}' password successfully updated via reset.")
+        LOGGER.info(f"User '{user.user_id}' password successfully updated via reset.")
         return jsonify({"message": "Password reset successful."}), 200
+
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Reset token expired."}), 400
     except Exception as ex:
@@ -260,41 +268,3 @@ def password_reset_confirm():
         return jsonify({"error": "Password reset failed."}), 400
     finally:
         db_session.close()
-
-
-@auth_bp.route('/test', methods=['POST'])
-def email_test():
-    data = request.json
-    try:
-        recipient_email = data['email']
-        subject = "TEST EMAIL"
-        body = "This is a test email sent via Flask-Mail and saved to Sent folder."
-
-        # --- Send using Flask-Mail ---
-        msg = Message(
-            subject=subject,
-            recipients=[recipient_email],
-            body=body,
-            sender=CRJYOUTH_MAIL_SUPPORT
-        )
-        mail.send(msg)
-        LOGGER.info("Test email sent via Flask-Mail.")
-
-        # --- Also store in IMAP Sent folder ---
-        # Build MIMEText manually
-        mime_msg = MIMEText(body)
-        mime_msg['From'] = CRJYOUTH_MAIL_SUPPORT
-        mime_msg['To'] = recipient_email
-        mime_msg['Subject'] = subject
-
-        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
-        imap.login(SMTP_USER, SMTP_PASSWORD)
-        imap.append('Sent', '', imaplib.Time2Internaldate(time.time()), mime_msg.as_bytes())
-        imap.logout()
-
-        LOGGER.info("Email also appended to IMAP Sent folder.")
-        return jsonify({'message': 'Email sent and saved to Sent folder'}), 200
-
-    except Exception as ex:
-        LOGGER.error(f'Test email failed: {ex}')
-        return jsonify({'error': 'Email test failed'}), 400
