@@ -120,7 +120,7 @@ class Book(Base):
 
 
     def __repr__(self) -> str:
-        return f"<Book(book_id='{self.book_id}', ISBN='{self.isbn}' title='{self.title}')>"
+        return f"<Book(book_id='{self.book_id}', ISBN='{self.isbn}', title='{self.title}')>"
 
 
     @staticmethod
