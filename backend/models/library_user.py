@@ -3,6 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy.sql import func
 from datetime import datetime
 import random
+import uuid
 from typing import Optional
 from models.base import Base
 from models.user_role import UserRole
@@ -21,7 +22,8 @@ LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logg
 class LibraryUser(Base):
     __tablename__ = 'users'
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     first_name: Mapped[str] = mapped_column(String(30), nullable=False)
     last_name: Mapped[str] = mapped_column(String(30), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=True)
@@ -101,6 +103,7 @@ class LibraryUser(Base):
             raise DuplicateUserError(f"User with email or phone number already exists. User ID: {existing.user_id}")
 
         new_user = cls(
+            user_uuid=str(uuid.uuid4()),
             user_id=cls.generate_user_id(),
             first_name=first_name,
             last_name=last_name,
