@@ -13,3 +13,12 @@ class DuplicateBookError(ValueError):
 
 class BookNotFoundError(ValueError):
     pass
+
+class DuplicateBookCopyError(ValueError):
+    pass
+
+class BookCopyNotFound(ValueError):
+    pass
+
+class LibraryOfficeNotFound(ValueError):
+    pass
