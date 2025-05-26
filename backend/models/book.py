@@ -93,7 +93,7 @@ class Book(Base):
         ).first()
 
         if existing:
-            LOGGER.warning(f"Skipped book creation: Book with ISBN '{isbn}' or ID '{book_id}' already exists.")
+            LOGGER.error(f"Skipped book creation: Book with ISBN '{isbn}' or ID '{book_id}' already exists.")
             raise DuplicateBookError(f"Book with ISBN or Book id already exists: {existing.book_id}")
 
         new_book = cls(
