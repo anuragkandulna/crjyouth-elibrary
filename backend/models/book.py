@@ -115,7 +115,7 @@ class Book(Base):
         )
         session.add(new_book)
         session.commit()
-        LOGGER.info(f"Book '{new_book.title}' added successfully with Book ID: {new_book.book_id}.")
+        LOGGER.info(f"New Book {new_book} created successfully.")
         return new_book
 
 
