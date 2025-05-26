@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, ForeignKey, func
+from sqlalchemy import String, Integer, Boolean, JSON, Float, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime
 import uuid
@@ -9,6 +9,7 @@ from models.author import Author
 from models.publisher import Publisher
 from utils.my_logger import CustomLogger
 from constants.config import LOG_LEVEL
+from models.exceptions import DuplicateBookError, BookNotFoundError
 
 
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
@@ -17,13 +18,16 @@ LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logg
 class Book(Base):
     __tablename__ = 'books'
 
-    book_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
-    book_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    book_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(20),  unique=True, nullable=False)
     book_number: Mapped[int] = mapped_column(nullable=False)
     isbn: Mapped[int] = mapped_column(unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     author_code: Mapped[Optional[str]] = mapped_column(ForeignKey("authors.code"), nullable=True)
     publisher_code: Mapped[str] = mapped_column(ForeignKey("publishers.code"), nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    contents: Mapped[JSON] = mapped_column(JSON, nullable=True)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     language: Mapped[str] = mapped_column(String(30), nullable=False)
     first_publication_year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -72,12 +76,13 @@ class Book(Base):
     def create_book(cls, session: Session,
                     isbn: int, title: str,
                     author_code: Optional[str], publisher_code: str,
-                    type: str, language: str, first_publication_year: int = None,
+                    description: Optional[str], contents: Optional[str], price: float,
+                    type: str, language: str, first_publication_year: int,
                     is_restricted_book: bool = False, is_pastoral_book: bool = False) -> "Book":
         """
         Create a new book in database.
         """
-        now = datetime.now().year
+        # now = datetime.now().year
         book_number = cls.get_next_book_number(session, author_code, publisher_code)
         id_prefix = author_code if author_code else publisher_code
         book_id = cls.generate_book_id(id_prefix, book_number)
@@ -86,9 +91,10 @@ class Book(Base):
         existing = session.query(cls).filter(
             (cls.isbn == isbn) | (cls.book_id == book_id)
         ).first()
+
         if existing:
             LOGGER.warning(f"Skipped book creation: Book with ISBN '{isbn}' or ID '{book_id}' already exists.")
-            return existing
+            raise DuplicateBookError(f"Book with ISBN or Book id already exists: {existing.book_id}")
 
         new_book = cls(
             book_uuid=str(uuid.uuid4()),
@@ -98,9 +104,12 @@ class Book(Base):
             title=title,
             author_code=author_code,
             publisher_code=publisher_code,
+            description=description,
+            contents=contents,
+            price=price,
             type=cls.validate_type(type),
             language=cls.validate_language(language),
-            first_publication_year=first_publication_year or now,
+            first_publication_year=first_publication_year,
             is_restricted_book=is_restricted_book,
             is_pastoral_book=is_pastoral_book
         )
@@ -111,7 +120,7 @@ class Book(Base):
 
 
     def __repr__(self) -> str:
-        return f"<Book(book_id='{self.book_id}', title='{self.title}', author_code='{self.author_code}', publisher_code='{self.publisher_code}')>"
+        return f"<Book(book_id='{self.book_id}', ISBN='{self.isbn}' title='{self.title}')>"
 
 
     @staticmethod
@@ -121,7 +130,7 @@ class Book(Base):
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
-            raise ValueError("Book not found.")
+            raise BookNotFoundError("Book not found.")
 
         return {
             "Book UUID": book.book_uuid,
@@ -130,6 +139,9 @@ class Book(Base):
             "Book Number": f"{book.book_number:03}",
             "ISBN": book.isbn,
             "Title": book.title,
+            "Description": book.description,
+            "Contents": book.contents,
+            "Price": book.price,
             "Author Code": book.author_code,
             "Publisher Code": book.publisher_code,
             "Type": book.type,
@@ -146,7 +158,7 @@ class Book(Base):
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
-            raise ValueError("Book not found.")
+            raise BookNotFoundError("Book not found.")
 
         for key, value in kwargs.items():
             if key == 'language':
@@ -157,7 +169,7 @@ class Book(Base):
                 setattr(book, key, value)
 
         session.commit()
-        LOGGER.info(f"Book '{book.title}' updated successfully.")
+        LOGGER.info(f"Book '{book.book_id}' - {kwargs.keys()} updated successfully.")
 
 
     @staticmethod
@@ -167,7 +179,7 @@ class Book(Base):
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
-            raise ValueError("Book not found.")
+            raise BookNotFoundError("Book not found.")
 
         session.delete(book)
         session.commit()
