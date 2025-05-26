@@ -144,7 +144,8 @@ class LibraryUser(Base):
 
         return {
             "User ID": existing.user_id,
-            "Name": f"{existing.first_name} {existing.last_name}",
+            "First Name": existing.first_name,
+            "Last Name": existing.last_name,
             "Email": existing.email,
             "Phone": existing.phone_number,
             "Role": existing.role,
