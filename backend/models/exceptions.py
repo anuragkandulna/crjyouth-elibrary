@@ -7,3 +7,9 @@ class DuplicateUserError(ValueError):
 
 class UserNotFoundError(ValueError):
     pass
+
+class DuplicateBookError(ValueError):
+    pass
+
+class BookNotFoundError(ValueError):
+    pass
