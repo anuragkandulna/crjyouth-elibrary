@@ -9,11 +9,11 @@ from models.base import Base
 from models.user_role import UserRole
 from models.library_membership import LibraryMembership
 from models.status_codes import StatusCode
-from utils.security import generate_password_hash, check_password_hash 
+from utils.security import generate_password_hash, check_password_hash, is_strong_password
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
 from constants.config import LOG_LEVEL
-from models.exceptions import DuplicateUserError, UserNotFoundError
+from models.exceptions import DuplicateUserError, UserNotFoundError, WeakPasswordError
 
 
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
@@ -88,6 +88,15 @@ class LibraryUser(Base):
         """
         Create a new user in database.
         """
+        # Verify if password meets security policy requirements
+        if not (12 <= len(password) <= 20):
+            LOGGER.error("Password length must be between 12 and 20 characters.")
+            raise WeakPasswordError("Password length must be between 12 and 20 characters.")
+
+        if not is_strong_password(password, first_name, last_name, email, phone_number):
+            LOGGER.error("Password must not contain name, email or phone number.")
+            WeakPasswordError("Password cannot contain name, email or phone number.")
+
         # Check if user with same email or phone number exists
         if email:
             existing = session.query(cls).filter(
@@ -99,8 +108,8 @@ class LibraryUser(Base):
             ).first()
 
         if existing:
-            LOGGER.error(f"User with email or phone number already exists. User ID: {existing.user_id}")
-            raise DuplicateUserError(f"User with email or phone number already exists. User ID: {existing.user_id}")
+            LOGGER.error(f"User with email or phone number already exists with id {existing.user_id}")
+            raise DuplicateUserError("User with email or phone number already exists.")
 
         new_user = cls(
             user_uuid=str(uuid.uuid4()),
