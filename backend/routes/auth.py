@@ -122,7 +122,7 @@ def get_nonce():
     return jsonify({"nonce": nonce}), 200
 
 
-@auth_bp.route('/api/v1/account/check-password-strength', methods=['POST'])
+@auth_bp.route('/api/v1/check-password-strength', methods=['POST'])
 def check_password_strength():
     data = request.json
     try:
@@ -153,7 +153,7 @@ def check_password_strength():
         return jsonify({"error": "Bad request!"}), 400
 
 
-@auth_bp.route('/api/v1/account/register', methods=['POST'])
+@auth_bp.route('/api/v1/register', methods=['POST'])
 def register():
     data = request.json
     try:
@@ -166,6 +166,7 @@ def register():
             password=data['password'],
             membership_type=data.get('membership')
         )
+
         LOGGER.info(f"User '{new_user.user_id}' registration successfully.")
         return jsonify({"message": f"User registered successfully. Your user id is {new_user.user_id}"}), 201
 
@@ -185,14 +186,19 @@ def register():
         db_session.close()
 
 
-@auth_bp.route('/api/v1/account/login', methods=['POST'])
+@auth_bp.route('/api/v1/login', methods=['POST'])
 def login():
     data = request.json
     try:
         if not validate_nonce(data.get('nonce', '')):
-            return jsonify({"error": "Invalid or expired nonce."}), 401
+            return jsonify({"error": "Unauthorized."}), 401
 
-        user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
+        if data.get('phone_number', None):
+            user = db_session.query(LibraryUser).filter_by(phone_number=data['phone_number'], account_status='ACTIVE').first()
+        else:
+            user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
+
+        # user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
         if not user or not user.check_password(data['password']):
             return jsonify({"error": "Invalid email or password."}), 401
 
