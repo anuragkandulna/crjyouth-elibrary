@@ -9,7 +9,7 @@ from models.base import Base
 from models.user_role import UserRole
 from models.library_membership import LibraryMembership
 from models.status_codes import StatusCode
-from utils.security import generate_password_hash, check_password_hash, is_strong_password
+from utils.security import generate_password_hash, check_password_hash, verify_strong_password
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
 from constants.config import LOG_LEVEL
@@ -89,13 +89,13 @@ class LibraryUser(Base):
         Create a new user in database.
         """
         # Verify if password meets security policy requirements
-        if not (12 <= len(password) <= 20):
-            LOGGER.error("Password length must be between 12 and 20 characters.")
-            raise WeakPasswordError("Password length must be between 12 and 20 characters.")
-
-        if not is_strong_password(password, first_name, last_name, email, phone_number):
-            LOGGER.error("Password must not contain name, email or phone number.")
-            WeakPasswordError("Password cannot contain name, email or phone number.")
+        is_strong, reason = verify_strong_password(
+            password1=password, first_name=first_name,
+            last_name=last_name, email=email, phone_number=phone_number
+        )
+        if not is_strong:
+            LOGGER.error(f"Weak password for user '{first_name} {last_name}': {reason}")
+            raise WeakPasswordError(reason)
 
         # Check if user with same email or phone number exists
         if email:
@@ -188,14 +188,53 @@ class LibraryUser(Base):
             LOGGER.error("User does not exist or is inactive.")
             raise UserNotFoundError("User does not exist or is inactive.")
 
+        if "password" in kwargs:
+            LOGGER.warning("Password cannot be change by this way.")
+            kwargs.pop("password")
+
         for key, value in kwargs.items():
-            if key == "password":
-                setattr(existing, key, generate_password_hash(value))  
-            elif hasattr(existing, key):
-                setattr(existing, key, value)
+            setattr(existing, key, value)
 
         session.commit()
         LOGGER.info(f"User '{existing.user_id}' - {kwargs.keys()} updated successfully.")
+
+
+    @staticmethod
+    def update_user_password(session: Session, email: Optional[str], phone_number: Optional[str], password: str) -> None:
+        """
+        Update user password only.
+        """
+        if email:
+            existing = session.query(LibraryUser).filter(
+                (LibraryUser.email == email),
+                (LibraryUser.account_status.in_(['ACTIVE', 'BLOCKED']))
+            ).first()
+        elif phone_number:
+            existing = session.query(LibraryUser).filter(
+                (LibraryUser.phone_number == phone_number),
+                (LibraryUser.account_status.in_(['ACTIVE', 'BLOCKED']))
+            ).first()
+        else:
+            LOGGER.error("Missing 'email' or 'phone_number' key in search parameters.")
+            raise KeyError("Missing 'email' or 'phone_number' key in search parameters.")
+
+        if not existing:
+            LOGGER.error("User does not exist or is inactive.")
+            raise UserNotFoundError("User does not exist or is inactive.")
+
+        # Verify if password meets security policy requirements
+        is_strong, reason = verify_strong_password(
+            password1=password, first_name=existing.first_name,
+            last_name=existing.last_name, email=existing.email, phone_number=existing.phone_number
+        )
+        if not is_strong:
+            LOGGER.error(f"Weak password for user '{existing.user_id}': {reason}")
+            raise WeakPasswordError(reason)
+        
+        # Hash and change password
+        existing.password_hash = generate_password_hash(password)
+        session.commit()
+        LOGGER.info(f"Password updated for user '{existing.user_id}' successfully.")
 
 
     @staticmethod
