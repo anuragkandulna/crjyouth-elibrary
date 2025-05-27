@@ -4,7 +4,6 @@ from flask_mail import Message
 import jwt
 import datetime
 import secrets
-import re
 from models.library_user import LibraryUser
 from models.exceptions import DuplicateUserError, WeakPasswordError
 from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
@@ -179,7 +178,6 @@ def login():
         else:
             user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
 
-        # user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
         if not user or not user.check_password(data['password']):
             return jsonify({"error": "Invalid email or password."}), 401
 
@@ -258,8 +256,8 @@ def password_reset_request():
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
 
     except Exception as ex:
-        LOGGER.error(f"Password reset failed: {ex}")
-        return jsonify({"error": "Password reset failed."}), 400
+        LOGGER.error(f"Password reset request bad request: {ex}")
+        return jsonify({"error": "Bad request."}), 400
 
 
 @auth_bp.route('/api/v1/password-reset-confirm', methods=['PUT'])
@@ -294,7 +292,7 @@ def password_reset_confirm():
         return jsonify({"error": "Reset token expired."}), 400
     except Exception as ex:
         db_session.rollback()
-        LOGGER.error(f"Password reset failed: {ex}")
-        return jsonify({"error": "Password reset failed."}), 400
+        LOGGER.error(f"Password reset failed due to: {ex}")
+        return jsonify({"error": "Bad request."}), 400
     finally:
         db_session.close()
