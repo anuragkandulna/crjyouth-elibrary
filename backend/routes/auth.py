@@ -53,15 +53,15 @@ def token_required(f):
         token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else None
 
         if not token:
-            return jsonify({"error": "Token is missing!"}), 401
+            return jsonify({"error": "Token is missing."}), 401
 
         try:
             decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
             request.user = decoded_data
         except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token has expired!"}), 401
+            return jsonify({"error": "Token has expired."}), 401
         except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token!"}), 401
+            return jsonify({"error": "Invalid token."}), 401
 
         return f(*args, **kwargs)
     return wrapper
@@ -75,22 +75,22 @@ def role_required(allowed_roles):
             token = auth_header.split(" ")[1] if auth_header and auth_header.startswith("Bearer ") else None
 
             if not token:
-                return jsonify({"error": "Token is missing!"}), 401
+                return jsonify({"error": "Token is missing."}), 401
 
             try:
                 decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
                 role = decoded_data.get("role")
 
                 if not role or role not in allowed_roles:
-                    return jsonify({"error": "Access forbidden!"}), 403
+                    return jsonify({"error": "Access forbidden."}), 403
 
                 request.user = decoded_data
                 return f(*args, **kwargs)
 
             except jwt.ExpiredSignatureError:
-                return jsonify({"error": "Token has expired!"}), 401
+                return jsonify({"error": "Token has expired."}), 401
             except jwt.InvalidTokenError:
-                return jsonify({"error": "Invalid token!"}), 401
+                return jsonify({"error": "Invalid token."}), 401
 
         return wrapper
     return decorator
@@ -110,10 +110,10 @@ def check_password_strength():
     try:
         password1 = data['password1']
         password2 = data['password2']
-        first_name = data.get('first_name', None)
-        last_name = data.get('last_name', None)
-        phone_number = data.get('phone_number', None)
-        email = data.get('email', None)
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        phone_number = data.get('phone_number')
+        email = data.get('email')
 
         is_strong, reason = verify_strong_password(
             password1=password1, password2=password2,
@@ -127,10 +127,11 @@ def check_password_strength():
         return jsonify({"message": "Password meets security policy requirements."}), 200
 
     except WeakPasswordError as ex:
-        return jsonify({"error": f"Password policy error. Reason: {ex}"}), 406
+        return jsonify({"error": f"Password policy error: {ex}"}), 406
     except Exception as ex:
         LOGGER.error(f"Password strength check failed: {ex}")
-        return jsonify({"error": "Bad request!"}), 400
+        return jsonify({"error": "Bad request."}), 400
+
 
 
 @auth_bp.route('/api/v1/register', methods=['POST'])
@@ -141,27 +142,27 @@ def register():
             db_session,
             first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data.get('email', None),
+            email=data.get('email'),
             phone_number=data['phone_number'],
             password=data['password'],
             membership_type=data.get('membership')
         )
 
-        LOGGER.info(f"User '{new_user.user_id}' registration successfully.")
-        return jsonify({"message": f"User registered successfully. Your user id is {new_user.user_id}"}), 201
+        LOGGER.info(f"User '{new_user.user_id}' registered successfully.")
+        return jsonify({"message": f"User registered successfully. Your user ID is {new_user.user_id}"}), 201
 
     except DuplicateUserError as ex:
         db_session.rollback()
-        LOGGER.error(f"User already exists error: {ex}")
-        return jsonify({"error": "Email or phone number exists."}), 409
+        LOGGER.error(f"User already exists: {ex}")
+        return jsonify({"error": "Email or phone number already exists."}), 409
     except WeakPasswordError as ex:
         db_session.rollback()
-        LOGGER.error(f"Weak password error: {ex}")
-        return jsonify({"error": f"Password policy error. Reason: {ex}"}), 406
+        LOGGER.error(f"Weak password: {ex}")
+        return jsonify({"error": f"Password policy error: {ex}"}), 406
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"User registration failed: {ex}")
-        return jsonify({"error": "Bad request!"}), 400
+        return jsonify({"error": "Bad request."}), 400
     finally:
         db_session.close()
 
@@ -173,13 +174,14 @@ def login():
         if not validate_nonce(data.get('nonce', '')):
             return jsonify({"error": "Unauthorized."}), 401
 
-        if data.get('phone_number', None):
+        user = None
+        if data.get('phone_number'):
             user = db_session.query(LibraryUser).filter_by(phone_number=data['phone_number'], account_status='ACTIVE').first()
-        else:
+        elif data.get('email'):
             user = db_session.query(LibraryUser).filter_by(email=data['email'], account_status='ACTIVE').first()
 
         if not user or not user.check_password(data['password']):
-            return jsonify({"error": "Invalid email or password."}), 401
+            return jsonify({"error": "Invalid credentials."}), 401
 
         token = user_token_cache.get(user.email) or generate_login_token(user)
         response = make_response(jsonify({"message": "Login successful."}))
@@ -204,31 +206,29 @@ def reset_password_authenticated():
         new_password1 = data['new_password1']
         new_password2 = data['new_password2']
 
-        if 'email' in data:
-            user = db_session.query(LibraryUser).filter_by(email=data['email']).first()
-        else:
-            user = db_session.query(LibraryUser).filter_by(phone_number=data['phone_number']).first()
+        user_email = request.user['email']
+        user = db_session.query(LibraryUser).filter_by(email=user_email).first()
 
         if not user or not user.check_password(old_password):
             return jsonify({"error": "Invalid old password."}), 401
 
-        # Verify if password meets security policy requirements
         is_strong, reason = verify_strong_password(
-            password1=new_password1, password2=new_password2, first_name=user.first_name,
-            last_name=user.last_name, email=user.email, phone_number=user.phone_number
+            password1=new_password1, password2=new_password2,
+            first_name=user.first_name, last_name=user.last_name,
+            email=user.email, phone_number=user.phone_number
         )
         if not is_strong:
             LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
             raise WeakPasswordError(reason)
 
         user.update_user_password(phone_number=user.phone_number, password=new_password1)
-        LOGGER.info(f"User {user.user_id} password changed successfully.")
+        LOGGER.info(f"User '{user.user_id}' changed password successfully.")
         return jsonify({"message": "Password changed successfully."}), 200
 
     except Exception as ex:
         db_session.rollback()
-        LOGGER.error(f"Password reset failed: {ex}")
-        return jsonify({"error": "Password reset failed."}), 500
+        LOGGER.error(f"Password change failed: {ex}")
+        return jsonify({"error": "Password change failed."}), 500
     finally:
         db_session.close()
 
@@ -243,7 +243,6 @@ def password_reset_request():
             "exp": datetime.datetime.now() + datetime.timedelta(minutes=30)
         }, JWT_SECRET_KEY, algorithm="HS256")
 
-        # Send email to user
         msg = Message(
             subject="CRJ Youth Library Password Reset",
             recipients=[email],
@@ -252,11 +251,11 @@ def password_reset_request():
         )
         mail.send(msg)
 
-        LOGGER.info(f"Password reset token email sent.")
+        LOGGER.info("Password reset email sent.")
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
 
     except Exception as ex:
-        LOGGER.error(f"Password reset request bad request: {ex}")
+        LOGGER.error(f"Password reset request failed: {ex}")
         return jsonify({"error": "Bad request."}), 400
 
 
@@ -275,24 +274,24 @@ def password_reset_confirm():
         email = decoded_data.get("email")
         user = db_session.query(LibraryUser).filter_by(email=email).first()
 
-        # Verify if password meets security policy requirements
         is_strong, reason = verify_strong_password(
-            password1=password1, password2=password2, first_name=user.first_name,
-            last_name=user.last_name, email=user.email, phone_number=user.phone_number
+            password1=password1, password2=password2,
+            first_name=user.first_name, last_name=user.last_name,
+            email=user.email, phone_number=user.phone_number
         )
         if not is_strong:
             LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
             raise WeakPasswordError(reason)
 
         user.update_user_password(phone_number=user.phone_number, password=password1)
-        LOGGER.info(f"User {user.user_id} password reset successfully.")
+        LOGGER.info(f"User '{user.user_id}' reset password successfully.")
         return jsonify({"message": "Password reset successfully."}), 200
 
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Reset token expired."}), 400
     except Exception as ex:
         db_session.rollback()
-        LOGGER.error(f"Password reset failed due to: {ex}")
-        return jsonify({"error": "Bad request."}), 400
+        LOGGER.error(f"Password reset failed: {ex}")
+        return jsonify({"error": "Password reset failed."}), 400
     finally:
         db_session.close()
