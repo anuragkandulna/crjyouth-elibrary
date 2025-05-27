@@ -11,7 +11,7 @@ from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
 from constants.constants import APP_LOG_FILE
 from utils.psql_database import db_session
 from utils.my_logger import CustomLogger
-from utils.security import generate_password_hash, is_strong_password
+from utils.security import generate_password_hash, verify_strong_password
 from utils.mail_setup import mail
 
 
@@ -32,23 +32,6 @@ def validate_nonce(nonce):
         del nonce_store[nonce]
         return True
     return False
-
-
-def validate_strong_password(password, name_fields):
-    if len(password) < 12:
-        return False
-    if not re.search(r"[A-Z]", password):
-        return False
-    if not re.search(r"[a-z]", password):
-        return False
-    if not re.search(r"[0-9]", password):
-        return False
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        return False
-    for field in name_fields:
-        if field and field.lower() in password.lower():
-            return False
-    return True
 
 
 def generate_login_token(user):
@@ -126,23 +109,21 @@ def get_nonce():
 def check_password_strength():
     data = request.json
     try:
-        # Verify if password1 and password2 matches
         password1 = data['password1']
         password2 = data['password2']
-        if password1 != password2:
-            raise WeakPasswordError("Password and confirm password do not match.")
-
-        if not (12 <= len(password1) <= 20 and 12 <= len(password2) <= 20):
-            raise WeakPasswordError("Password length must be between 12 and 20 characters.")
-
-        # Verify if password policy meets
-        first_name = data['first_name']
-        last_name = data['last_name']
-        phone_number = data['phone_number']
+        first_name = data.get('first_name', None)
+        last_name = data.get('last_name', None)
+        phone_number = data.get('phone_number', None)
         email = data.get('email', None)
 
-        if not is_strong_password(password1, first_name, last_name, phone_number, email):
-            raise WeakPasswordError("Password must not contain name, email or phone number.")
+        is_strong, reason = verify_strong_password(
+            password1=password1, password2=password2,
+            first_name=first_name, last_name=last_name,
+            email=email, phone_number=phone_number
+        )
+
+        if not is_strong:
+            raise WeakPasswordError(reason)
 
         return jsonify({"message": "Password meets security policy requirements."}), 200
 
@@ -221,22 +202,30 @@ def login():
 def reset_password_authenticated():
     data = request.json
     try:
-        user_email = request.user['email']
-        user = db_session.query(LibraryUser).filter_by(email=user_email).first()
+        old_password = data['old_password']
+        new_password1 = data['new_password1']
+        new_password2 = data['new_password2']
 
-        password1 = data.get("password1")
-        password2 = data.get("password2")
+        if 'email' in data:
+            user = db_session.query(LibraryUser).filter_by(email=data['email']).first()
+        else:
+            user = db_session.query(LibraryUser).filter_by(phone_number=data['phone_number']).first()
 
-        if password1 != password2:
-            return jsonify({"error": "Passwords do not match."}), 400
+        if not user or not user.check_password(old_password):
+            return jsonify({"error": "Invalid old password."}), 401
 
-        if not validate_strong_password(password1, [user.first_name, user.last_name, user.email, user.phone_number]):
-            return jsonify({"error": "Password does not meet policy requirements."}), 400
+        # Verify if password meets security policy requirements
+        is_strong, reason = verify_strong_password(
+            password1=new_password1, password2=new_password2, first_name=user.first_name,
+            last_name=user.last_name, email=user.email, phone_number=user.phone_number
+        )
+        if not is_strong:
+            LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
+            raise WeakPasswordError(reason)
 
-        user.password_hash = generate_password_hash(password1)
-        db_session.commit()
-        LOGGER.info(f"User '{user.user_id}' successfully reset password.")
-        return jsonify({"message": "Password updated successfully."}), 200
+        user.update_user_password(phone_number=user.phone_number, password=new_password1)
+        LOGGER.info(f"User {user.user_id} password changed successfully.")
+        return jsonify({"message": "Password changed successfully."}), 200
 
     except Exception as ex:
         db_session.rollback()
@@ -246,7 +235,7 @@ def reset_password_authenticated():
         db_session.close()
 
 
-@auth_bp.route('/api/v1/account/password-reset-request', methods=['POST'])
+@auth_bp.route('/api/v1/password-reset-request', methods=['POST'])
 def password_reset_request():
     data = request.json
     try:
@@ -269,11 +258,11 @@ def password_reset_request():
         return jsonify({"message": "If your email is registered, a reset link has been sent."}), 200
 
     except Exception as ex:
-        LOGGER.error(f"Password reset request failed: {ex}")
+        LOGGER.error(f"Password reset failed: {ex}")
         return jsonify({"error": "Password reset failed."}), 400
 
 
-@auth_bp.route('/api/v1/account/password-reset-confirm', methods=['PUT'])
+@auth_bp.route('/api/v1/password-reset-confirm', methods=['PUT'])
 def password_reset_confirm():
     data = request.json
     try:
@@ -288,13 +277,18 @@ def password_reset_confirm():
         email = decoded_data.get("email")
         user = db_session.query(LibraryUser).filter_by(email=email).first()
 
-        if not validate_strong_password(password1, [user.first_name, user.last_name, user.email, user.phone_number]):
-            return jsonify({"error": "Password does not meet policy requirements."}), 400
+        # Verify if password meets security policy requirements
+        is_strong, reason = verify_strong_password(
+            password1=password1, password2=password2, first_name=user.first_name,
+            last_name=user.last_name, email=user.email, phone_number=user.phone_number
+        )
+        if not is_strong:
+            LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
+            raise WeakPasswordError(reason)
 
-        user.password_hash = generate_password_hash(password1)
-        db_session.commit()
-        LOGGER.info(f"User '{user.user_id}' password successfully updated via reset.")
-        return jsonify({"message": "Password reset successful."}), 200
+        user.update_user_password(phone_number=user.phone_number, password=password1)
+        LOGGER.info(f"User {user.user_id} password reset successfully.")
+        return jsonify({"message": "Password reset successfully."}), 200
 
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Reset token expired."}), 400
