@@ -22,3 +22,6 @@ class BookCopyNotFound(ValueError):
 
 class LibraryOfficeNotFound(ValueError):
     pass
+
+class WeakPasswordError(ValueError):
+    pass
