@@ -6,12 +6,12 @@ import datetime
 import secrets
 import re
 from models.library_user import LibraryUser
-from models.exceptions import DuplicateUserError
+from models.exceptions import DuplicateUserError, WeakPasswordError
 from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
 from constants.constants import APP_LOG_FILE
 from utils.psql_database import db_session
 from utils.my_logger import CustomLogger
-from utils.security import generate_password_hash
+from utils.security import generate_password_hash, is_strong_password
 from utils.mail_setup import mail
 
 
@@ -122,31 +122,61 @@ def get_nonce():
     return jsonify({"nonce": nonce}), 200
 
 
+@auth_bp.route('/api/v1/account/check-password-strength', methods=['POST'])
+def check_password_strength():
+    data = request.json
+    try:
+        # Verify if password1 and password2 matches
+        password1 = data['password1']
+        password2 = data['password2']
+        if password1 != password2:
+            raise WeakPasswordError("Password and confirm password do not match.")
+
+        if not (12 <= len(password1) <= 20 and 12 <= len(password2) <= 20):
+            raise WeakPasswordError("Password length must be between 12 and 20 characters.")
+
+        # Verify if password policy meets
+        first_name = data['first_name']
+        last_name = data['last_name']
+        phone_number = data['phone_number']
+        email = data.get('email', None)
+
+        if not is_strong_password(password1, first_name, last_name, phone_number, email):
+            raise WeakPasswordError("Password must not contain name, email or phone number.")
+
+        return jsonify({"message": "Password meets security policy requirements."}), 200
+
+    except WeakPasswordError as ex:
+        return jsonify({"error": f"Password policy error. Reason: {ex}"}), 406
+    except Exception as ex:
+        LOGGER.error(f"Password strength check failed: {ex}")
+        return jsonify({"error": "Bad request!"}), 400
+
+
 @auth_bp.route('/api/v1/account/register', methods=['POST'])
-@role_required(['Admin', 'Moderator'])
 def register():
     data = request.json
     try:
-        password = data.get('password')
-        if not validate_strong_password(password, [data['first_name'], data['last_name'], data['phone_number'], data.get('email', '')]):
-            return jsonify({"error": "Password does not meet policy requirements."}), 400
-
         new_user = LibraryUser.create_user(
             db_session,
             first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data['email'],
-            phone_number=data.get('phone_number'),
-            password=password,
+            email=data.get('email', None),
+            phone_number=data['phone_number'],
+            password=data['password'],
             membership_type=data.get('membership')
         )
         LOGGER.info(f"User '{new_user.user_id}' registration successfully.")
-        return jsonify({"message": f"User registered successfully: {new_user.user_id}"}), 201
+        return jsonify({"message": f"User registered successfully. Your user id is {new_user.user_id}"}), 201
 
     except DuplicateUserError as ex:
         db_session.rollback()
-        LOGGER.error(f"Email or phone number already exists.")
+        LOGGER.error(f"User already exists error: {ex}")
         return jsonify({"error": "Email or phone number exists."}), 409
+    except WeakPasswordError as ex:
+        db_session.rollback()
+        LOGGER.error(f"Weak password error: {ex}")
+        return jsonify({"error": f"Password policy error. Reason: {ex}"}), 406
     except Exception as ex:
         db_session.rollback()
         LOGGER.error(f"User registration failed: {ex}")
