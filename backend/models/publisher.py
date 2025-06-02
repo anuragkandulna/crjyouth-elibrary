@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, select
 from models.base import Base
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
@@ -29,13 +29,13 @@ class Publisher(Base):
         Create a new publisher in the database.
         """
         # Check if publisher already exists
-        existing = session.query(cls).filter(
-            (cls.code == code) | (cls.name == name)
-        ).first()
+        stmt = select(cls).where((cls.code == code) | (cls.name == name))
+        existing = session.execute(stmt).scalars().first()
+
         if existing:
             LOGGER.warning(f"Skipped publication creation: Publisher with name '{name}' or code '{code}' already exists.")
             return existing
-        
+
         new_publisher = cls(
             code=code,
             name=name
@@ -51,11 +51,13 @@ class Publisher(Base):
         """
         Delete a publisher permanently.
         """
-        publisher = session.query(Publisher).filter_by(code=code).first()
+        stmt = select(Publisher).where(Publisher.code == code)
+        publisher = session.execute(stmt).scalars().first()
+
         if not publisher:
             LOGGER.error(f"Publisher with code '{code}' not found.")
             raise ValueError(f"Publisher with code '{code}' not found.")
-        
+
         session.delete(publisher)
         session.commit()
         LOGGER.info(f"Deleted {publisher.name} successfully.")
