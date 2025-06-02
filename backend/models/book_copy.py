@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Float, func
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Float, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime, timezone
 import uuid
@@ -46,7 +46,7 @@ class BookCopy(Base):
         """
         Return next copy number of a book.
         """
-        result = session.query(func.max(cls.copy_number)).filter_by(book_id=book_id).scalar()
+        result = session.scalar(select(func.max(cls.copy_number)).where(cls.book_id == book_id))
         return (result or 0) + 1
 
 
@@ -68,12 +68,12 @@ class BookCopy(Base):
         Create a book copy in database.
         """
         # Validate book_id
-        book = session.query(Book).filter_by(book_id=book_id).first()
+        book = session.scalar(select(Book).where(Book.book_id == book_id))
         if not book:
             raise BookNotFoundError(f"Invalid book_id '{book_id}'")
 
         # Validate branch_code
-        branch = session.query(LibraryOffice).filter_by(office_code=branch_code).first()
+        branch = session.scalar(select(LibraryOffice).where(LibraryOffice.office_code == branch_code))
         if not branch:
             raise LibraryOfficeNotFound(f"Invalid branch_code '{branch_code}'")
 
@@ -81,7 +81,7 @@ class BookCopy(Base):
         copy_id = cls.generate_copy_id(branch_code.upper(), book_id, copy_number)
 
         # Check if copy already exists
-        existing = session.query(cls).filter_by(copy_id=copy_id).first()
+        existing = session.scalar(select(cls).where(cls.copy_id == copy_id))
         if existing:
             LOGGER.error(f"Book Copy already exists with id: {existing.copy_id}")
             raise DuplicateBookCopyError(f"Book Copy already exists with id: {existing.copy_id}")
@@ -132,7 +132,7 @@ class BookCopy(Base):
         """
         View book copy details.
         """
-        copy = session.query(BookCopy).filter_by(copy_id=copy_id).first()
+        copy = session.scalar(select(BookCopy).where(BookCopy.copy_id == copy_id))
         if not copy:
             raise BookCopyNotFound("Book copy not found.")
 
@@ -153,7 +153,7 @@ class BookCopy(Base):
         """
         Edit book copy details.
         """
-        copy = session.query(BookCopy).filter_by(copy_id=copy_id).first()
+        copy = session.scalar(select(BookCopy).where(BookCopy.copy_id == copy_id))
         if not copy:
             raise BookCopyNotFound("Book copy not found.")
 
@@ -170,7 +170,7 @@ class BookCopy(Base):
         """
         Delete a book copy.
         """
-        copy = session.query(BookCopy).filter_by(copy_id=copy_id).first()
+        copy = session.scalar(select(BookCopy).where(BookCopy.copy_id == copy_id))
         if not copy:
             raise BookCopyNotFound("Book copy not found.")
 
