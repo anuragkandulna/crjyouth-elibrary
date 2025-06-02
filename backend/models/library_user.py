@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, DateTime, JSON, ForeignKey
+from sqlalchemy import String, Integer, DateTime, JSON, ForeignKey, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -81,8 +81,7 @@ class LibraryUser(Base):
 
     # ------------------ CRUD Operations ------------------ #
     @classmethod
-    def create_user(cls, session: Session,
-                    first_name: str, last_name: str,
+    def create_user(cls, session: Session, first_name: str, last_name: str,
                     email: Optional[str], phone_number: str, password: str,
                     role: int = 3, membership_type: int = 5) -> "LibraryUser":
         """
@@ -98,14 +97,8 @@ class LibraryUser(Base):
             raise WeakPasswordError(reason)
 
         # Check if user with same email or phone number exists
-        if email:
-            existing = session.query(cls).filter(
-                (cls.email == email) | (cls.phone_number == phone_number)
-            ).first()
-        else:
-            existing = session.query(cls).filter(
-                (cls.phone_number == phone_number)
-            ).first()
+        stmt = select(cls).where((cls.email == email) | (cls.phone_number == phone_number)) if email else select(cls).where(cls.phone_number == phone_number)
+        existing = session.execute(stmt).scalar_one_or_none()
 
         if existing:
             LOGGER.error(f"User with email or phone number already exists with id {existing.user_id}")
