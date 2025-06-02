@@ -42,4 +42,4 @@ STATUS_CODE_CATEGORY = [
 # Log files
 OPS_LOG_FILE = 'crjyouth_operations.log'
 APP_LOG_FILE = 'crjyouth_application.log'
-
+AUTH_LOG_FILE = 'crjyouth_auth.log'
