@@ -19,14 +19,14 @@ class Book(Base):
     __tablename__ = 'books'
 
     book_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
-    book_id: Mapped[str] = mapped_column(String(20),  unique=True, nullable=False)
+    book_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     book_number: Mapped[int] = mapped_column(nullable=False)
     isbn: Mapped[int] = mapped_column(unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     author_code: Mapped[Optional[str]] = mapped_column(ForeignKey("authors.code"), nullable=True)
     publisher_code: Mapped[str] = mapped_column(ForeignKey("publishers.code"), nullable=False)
-    description: Mapped[str] = mapped_column(String, nullable=True)
-    contents: Mapped[JSON] = mapped_column(JSON, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contents: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     language: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -42,7 +42,7 @@ class Book(Base):
     @staticmethod
     def validate_type(book_type: str) -> str:
         """
-        Validate a book type.
+        Validate and normalize the book type.
         """
         return book_type if book_type in BOOK_TYPE else "Other"
 
@@ -50,13 +50,16 @@ class Book(Base):
     @staticmethod
     def validate_language(language: str) -> str:
         """
-        Validate a language.
+        Validate and normalize the language field.
         """
         return language if language in LANGUAGES else "Unknown"
 
 
     @classmethod
     def get_next_book_number(cls, session: Session, author_code: Optional[str], publisher_code: str) -> int:
+        """
+        Get the next book number for a given author or publisher.
+        """
         if author_code:
             max_number = session.query(func.max(cls.book_number)).filter_by(author_code=author_code).scalar()
         else:
@@ -67,27 +70,28 @@ class Book(Base):
     @classmethod
     def generate_book_id(cls, code: str, book_number: int) -> str:
         """
-        Generate a unique book id for a book.
+        Generate a unique human-readable book ID.
         """
         return f"{code}-{book_number:03}"
 
 
     @classmethod
-    def create_book(cls, session: Session,
-                    isbn: int, title: str,
-                    author_code: Optional[str], publisher_code: str,
-                    description: Optional[str], contents: Optional[str], price: float,
-                    type: str, language: str, first_publication_year: int,
-                    is_restricted_book: bool = False, is_pastoral_book: bool = False) -> "Book":
+    def create_book(
+        cls, session: Session,
+        isbn: int, title: str,
+        author_code: Optional[str], publisher_code: str,
+        description: Optional[str], contents: Optional[dict], price: float,
+        type: str, language: str, first_publication_year: int,
+        is_restricted_book: bool = False, is_pastoral_book: bool = False
+    ) -> "Book":
         """
-        Create a new book in database.
+        Create a new book entry in the database after validation.
         """
-        # now = datetime.now().year
         book_number = cls.get_next_book_number(session, author_code, publisher_code)
         id_prefix = author_code if author_code else publisher_code
         book_id = cls.generate_book_id(id_prefix, book_number)
 
-        # Check for duplicate ISBN or book_id
+        # Check if author already exists
         existing = session.query(cls).filter(
             (cls.isbn == isbn) | (cls.book_id == book_id)
         ).first()
@@ -126,7 +130,7 @@ class Book(Base):
     @staticmethod
     def get_details(session: Session, book_id: str) -> dict:
         """
-        Get details of a book.
+        Retrieve and return details of a book by its book_id.
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
@@ -154,7 +158,7 @@ class Book(Base):
     @staticmethod
     def edit_book(session: Session, book_id: str, **kwargs) -> None:
         """
-        Edit book details.
+        Edit book fields using keyword arguments.
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
@@ -175,7 +179,7 @@ class Book(Base):
     @staticmethod
     def delete_book(session: Session, book_id: str) -> None:
         """
-        Delete a book permanently from database.
+        Permanently delete a book by its book_id.
         """
         book = session.query(Book).filter_by(book_id=book_id).first()
         if not book:
