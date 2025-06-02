@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, select, update, delete
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -49,9 +49,11 @@ class UserSession(Base):
         """
         Get all active sessions of the user.
         """
-        return session.query(UserSession)\
-            .filter_by(user_uuid=user_uuid, is_active=True)\
-            .all()
+        stmt = select(UserSession).where(
+            UserSession.user_uuid == user_uuid,
+            UserSession.is_active.is_(True)
+        )
+        return list(session.scalars(stmt).all())
 
 
     @staticmethod
@@ -59,7 +61,12 @@ class UserSession(Base):
         """
         Update the last_refreshed timestamp and extend expiry.
         """
-        db_session = session.query(UserSession).filter_by(session_id=session_id, is_active=True).first()
+        stmt = select(UserSession).where(
+            UserSession.session_id == session_id,
+            UserSession.is_active.is_(True)
+        )
+        db_session = session.scalar(stmt)
+
         if db_session:
             now = datetime.now(timezone.utc)
             db_session.last_refreshed = now
@@ -72,9 +79,11 @@ class UserSession(Base):
         """
         Mark a single session inactive (e.g., device logout).
         """
-        db_session = session.query(UserSession).filter_by(
-            session_id=session_id, is_active=True
-        ).first()
+        stmt = select(UserSession).where(
+            UserSession.session_id == session_id,
+            UserSession.is_active.is_(True)
+        )
+        db_session = session.scalar(stmt)
 
         if not db_session:
             return False
@@ -83,18 +92,19 @@ class UserSession(Base):
         session.commit()
         return True
 
-
     @staticmethod
     def deactivate_all_sessions(session: Session, user_uuid: str) -> int:
         """
         Mark all active sessions of a user as inactive.
         """
-        count = session.query(UserSession)\
-            .filter_by(user_uuid=user_uuid, is_active=True)\
-            .update({UserSession.is_active: False})
+        stmt = (
+            update(UserSession)
+            .where(UserSession.user_uuid == user_uuid, UserSession.is_active.is_(True))
+            .values(is_active=False)
+        )
+        result = session.execute(stmt)
         session.commit()
-        return count
-
+        return result.rowcount
 
     @staticmethod
     def cleanup_expired_sessions(session: Session) -> int:
@@ -102,12 +112,10 @@ class UserSession(Base):
         Delete sessions that have expired more than 1 day ago.
         """
         threshold = datetime.now(timezone.utc) - timedelta(days=1)
-        result = session.query(UserSession).filter(
-            UserSession.expires_at < threshold
-        ).delete()
+        stmt = delete(UserSession).where(UserSession.expires_at < threshold)
+        result = session.execute(stmt)
         session.commit()
-        return result
-
+        return result.rowcount
 
     def __repr__(self):
         return f"<UserSession(session_id='{self.session_id}', user_uuid='{self.user_uuid}', device='{self.device_id}', active={self.is_active})>"
