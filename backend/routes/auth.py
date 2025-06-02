@@ -7,7 +7,7 @@ import secrets
 from models.library_user import LibraryUser
 from models.exceptions import DuplicateUserError, WeakPasswordError
 from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
-from constants.constants import APP_LOG_FILE
+from constants.constants import AUTH_LOG_FILE
 from utils.psql_database import db_session
 from utils.my_logger import CustomLogger
 from utils.security import generate_password_hash, verify_strong_password
@@ -18,7 +18,7 @@ from utils.mail_setup import mail
 nonce_store = {}
 user_token_cache = {}
 auth_bp = Blueprint('auth_bp', __name__)
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=AUTH_LOG_FILE).get_logger()
 
 
 # -------------------- Utility Functions -------------------- #
