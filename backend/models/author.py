@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, select
 from models.base import Base
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
@@ -28,18 +28,14 @@ class Author(Base):
         """
         Create a new author into database.
         """
-        # Check if author already exists        
-        existing = session.query(cls).filter(
-            (cls.code == code) | (cls.name == name)
-        ).first()
+        # Check if author already exists
+        stmt = select(cls).where((cls.code == code) | (cls.name == name))
+        existing = session.execute(stmt).scalar_one_or_none()
         if existing:
             LOGGER.warning(f"Skipped author creation: Author with name '{name}' or code '{code}' already exists.")
             return existing
-        
-        new_author = cls(
-            code=code,
-            name=name
-        )
+
+        new_author = cls(code=code, name=name)
         session.add(new_author)
         session.commit()
         LOGGER.info(f"Author added: '{code}' - '{name}' added successfully.")
@@ -51,11 +47,12 @@ class Author(Base):
         """
         Delete an author permanently.
         """
-        author = session.query(Author).filter_by(code=code).first()
+        stmt = select(Author).where(Author.code == code)
+        author = session.execute(stmt).scalar_one_or_none()
         if not author:
             LOGGER.error(f"Author with code '{code}' not found.")
             raise ValueError(f"Author with code '{code}' not found.")
-        
+
         session.delete(author)
         session.commit()
         LOGGER.info(f"Deleted {author.name} successfully.")
