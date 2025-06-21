@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy import String, Integer, select
+from typing import List
+
 from models.base import Base
+from models.book import Book
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
 from constants.config import LOG_LEVEL
@@ -16,7 +19,7 @@ class Author(Base):
     code: Mapped[str] = mapped_column(String(2), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
-    books = relationship("Book", back_populates="author")
+    books: Mapped[List["Book"]] = relationship("Book", back_populates="author")
 
 
     def __repr__(self) -> str:
