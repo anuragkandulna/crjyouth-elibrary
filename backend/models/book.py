@@ -1,12 +1,13 @@
-from sqlalchemy import String, Integer, Boolean, JSON, Float, ForeignKey, func
+from sqlalchemy import String, Integer, Boolean, JSON, Float, ForeignKey, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime
 import uuid
-from typing import Optional
+from typing import Optional, List
 from constants.constants import LANGUAGES, BOOK_TYPE, OPS_LOG_FILE
 from models.base import Base
 from models.author import Author
 from models.publisher import Publisher
+from models.book_copy import BookCopy
 from utils.my_logger import CustomLogger
 from constants.config import LOG_LEVEL
 from models.exceptions import DuplicateBookError, BookNotFoundError
@@ -19,9 +20,9 @@ class Book(Base):
     __tablename__ = 'books'
 
     book_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
-    book_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    book_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     book_number: Mapped[int] = mapped_column(nullable=False)
-    isbn: Mapped[int] = mapped_column(unique=True, nullable=False)
+    isbn: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     author_code: Mapped[Optional[str]] = mapped_column(ForeignKey("authors.code"), nullable=True)
     publisher_code: Mapped[str] = mapped_column(ForeignKey("publishers.code"), nullable=False)
@@ -34,9 +35,9 @@ class Book(Base):
     is_restricted_book: Mapped[bool] = mapped_column(Boolean, default=False)
     is_pastoral_book: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    author = relationship("Author", back_populates="books")
-    publisher = relationship("Publisher", back_populates="books")
-    copies = relationship("BookCopy", back_populates="book")
+    author: Mapped[Optional["Author"]] = relationship("Author", back_populates="books")
+    publisher: Mapped["Publisher"] = relationship("Publisher", back_populates="books")
+    copies: Mapped[List["BookCopy"]] = relationship("BookCopy", back_populates="book", cascade="all, delete")
 
 
     @staticmethod
@@ -61,9 +62,13 @@ class Book(Base):
         Get the next book number for a given author or publisher.
         """
         if author_code:
-            max_number = session.query(func.max(cls.book_number)).filter_by(author_code=author_code).scalar()
+            max_number = session.scalar(
+                select(func.max(cls.book_number)).filter_by(author_code=author_code)
+            )
         else:
-            max_number = session.query(func.max(cls.book_number)).filter_by(publisher_code=publisher_code).scalar()
+            max_number = session.scalar(
+                select(func.max(cls.book_number)).filter_by(publisher_code=publisher_code)
+            )
         return (max_number or 0) + 1
 
 
@@ -78,7 +83,7 @@ class Book(Base):
     @classmethod
     def create_book(
         cls, session: Session,
-        isbn: int, title: str,
+        isbn: str, title: str,
         author_code: Optional[str], publisher_code: str,
         description: Optional[str], contents: Optional[dict], price: float,
         type: str, language: str, first_publication_year: int,
@@ -92,9 +97,9 @@ class Book(Base):
         book_id = cls.generate_book_id(id_prefix, book_number)
 
         # Check if author already exists
-        existing = session.query(cls).filter(
-            (cls.isbn == isbn) | (cls.book_id == book_id)
-        ).first()
+        existing = session.scalar(
+            select(cls).filter((cls.isbn == isbn) | (cls.book_id == book_id))
+        )
 
         if existing:
             LOGGER.error(f"Skipped book creation: Book with ISBN '{isbn}' or ID '{book_id}' already exists.")
@@ -117,6 +122,7 @@ class Book(Base):
             is_restricted_book=is_restricted_book,
             is_pastoral_book=is_pastoral_book
         )
+
         session.add(new_book)
         session.commit()
         LOGGER.info(f"New Book {new_book} created successfully.")
@@ -132,7 +138,7 @@ class Book(Base):
         """
         Retrieve and return details of a book by its book_id.
         """
-        book = session.query(Book).filter_by(book_id=book_id).first()
+        book = session.scalar(select(Book).filter_by(book_id=book_id))
         if not book:
             raise BookNotFoundError("Book not found.")
 
@@ -160,7 +166,7 @@ class Book(Base):
         """
         Edit book fields using keyword arguments.
         """
-        book = session.query(Book).filter_by(book_id=book_id).first()
+        book = session.scalar(select(Book).filter_by(book_id=book_id))
         if not book:
             raise BookNotFoundError("Book not found.")
 
@@ -181,7 +187,7 @@ class Book(Base):
         """
         Permanently delete a book by its book_id.
         """
-        book = session.query(Book).filter_by(book_id=book_id).first()
+        book = session.scalar(select(Book).filter_by(book_id=book_id))
         if not book:
             raise BookNotFoundError("Book not found.")
 
