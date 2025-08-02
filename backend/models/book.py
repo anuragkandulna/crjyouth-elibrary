@@ -15,42 +15,38 @@ class Book(Base):
     __tablename__ = 'books'
 
     book_uuid: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    book_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    book_id: Mapped[str] = mapped_column(String(5), unique=True, nullable=False, index=True)
     book_number: Mapped[int] = mapped_column(nullable=False)
     isbn: Mapped[str] = mapped_column(String(13), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
-    author_code: Mapped[str] = mapped_column(ForeignKey("authors.code"), nullable=False)
-    category: Mapped[str] = mapped_column(ForeignKey("book_categories.name"), nullable=False)
+    author_code: Mapped[int] = mapped_column(ForeignKey("authors.code"), nullable=False)
+    genre: Mapped[str] = mapped_column(ForeignKey("genres.name"), nullable=False)
     language: Mapped[str] = mapped_column(ForeignKey("book_languages.language"), nullable=False)
 
     author = relationship("Author", back_populates="books")
     copies = relationship("BookCopy", back_populates="book", cascade="all, delete")
-    categories = relationship("BookCategory", back_populates="books")
+    genres = relationship("Genre", back_populates="books")
     book_language = relationship("BookLanguage", back_populates="books")
 
 
     @classmethod
-    def get_next_book_number(cls, session: Session, author_code: str) -> int:
+    def get_next_book_number(cls, session: Session, author_code: int) -> int:
         stmt = select(func.max(cls.book_number)).where(cls.author_code == author_code)
         max_number = session.execute(stmt).scalar_one_or_none()
         return (max_number or 0) + 1
 
 
     @classmethod
-    def generate_book_id(cls, author_code: str, book_number: int) -> str:
-        try:
-            prefix = int(''.join(filter(str.isdigit, author_code))[:2])  # Extract 2-digit int from author_code
-        except (ValueError, IndexError):
-            prefix = 0
-        return f"{prefix:02}{book_number:03}"
+    def generate_book_id(cls, author_code: int, book_number: int) -> str:
+        return f"{author_code:02}{book_number:03}"  
 
 
     @classmethod
     def create_book(
         cls, session: Session,
         isbn: str, title: str,
-        author_code: str,
-        category: str, language: str
+        author_code: int,
+        genre: str, language: str
     ) -> "Book":
         book_number = cls.get_next_book_number(session, author_code)
         book_id = cls.generate_book_id(author_code, book_number)
@@ -68,7 +64,7 @@ class Book(Base):
             isbn=isbn,
             title=title,
             author_code=author_code,
-            category=category,
+            genre=genre,
             language=language
         )
 
@@ -96,7 +92,7 @@ class Book(Base):
             "ISBN": book.isbn,
             "Title": book.title,
             "Language": book.language,
-            "Category": book.category,
+            "Genre": book.genre,
             "Author Code": book.author_code
         }
 
