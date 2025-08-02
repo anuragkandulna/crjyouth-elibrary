@@ -49,7 +49,7 @@ def handle_auth_error(error: Exception, context: str, status_code: int = 500) ->
     LOGGER.error(f"{context}: {error}")
     
     if isinstance(error, DuplicateUserError):
-        return {"error": "Email or phone number already exists"}, 409
+        return {"error": "Email already exists"}, 409
     elif isinstance(error, WeakPasswordError):
         return {"error": f"Password policy error: {error}"}, 406
     elif "does not exist" in str(error):
@@ -81,13 +81,12 @@ def check_password_strength():
         password2 = data['password2']
         first_name = data.get('first_name', '')
         last_name = data.get('last_name', '')
-        phone_number = data.get('phone_number', '')
         email = data.get('email', '')
 
         is_strong, reason = verify_strong_password(
             password1=password1, password2=password2,
             first_name=first_name, last_name=last_name,
-            email=email, phone_number=phone_number
+            email=email
         )
 
         if not is_strong:
@@ -104,7 +103,7 @@ def check_password_strength():
 @rate_limit(max_requests=REGISTER_RATE_LIMIT_REQUESTS, window_minutes=REGISTER_RATE_LIMIT_WINDOW_MINUTES)
 def register():
     data = request.get_json()
-    required_fields = ['first_name', 'last_name', 'phone_number', 'password']
+    required_fields = ['first_name', 'last_name', 'email', 'password']
     is_valid, error_msg = validate_request_data(data, required_fields)
     if not is_valid:
         return jsonify({"error": error_msg}), 400
@@ -116,7 +115,6 @@ def register():
                 first_name=data['first_name'],
                 last_name=data['last_name'],
                 email=data.get('email'),
-                phone_number=data['phone_number'],
                 password=data['password']
             )
             LOGGER.info(f"User registered: {user.user_id}")
@@ -139,9 +137,9 @@ def login():
     if not is_valid:
         return jsonify({"error": error_msg}), 400
     
-    if not data.get('phone_number') and not data.get('email'):
+    if not data.get('email'):
         return jsonify({
-            "error": "Either phone_number or email is required"
+            "error": "Email is required"
         }), 400
     
     try:
@@ -150,12 +148,7 @@ def login():
 
         with get_db_session() as session:
             user = None
-            if data.get('phone_number'):
-                user = session.query(User).filter_by(
-                    phone_number=data['phone_number'], 
-                    account_status='ACTIVE'
-                ).first()
-            elif data.get('email'):
+            if data.get('email'):
                 user = session.query(User).filter_by(
                     email=data['email'], 
                     account_status='ACTIVE'
@@ -237,7 +230,7 @@ def reset_password_authenticated():
             is_strong, reason = verify_strong_password(
                 password1=new_password1, password2=new_password2,
                 first_name=user.first_name, last_name=user.last_name,
-                email=user.email or '', phone_number=user.phone_number
+                email=user.email or ''
             )
             if not is_strong:
                 LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
@@ -246,7 +239,6 @@ def reset_password_authenticated():
             User.update_user_password(
                 session=session,
                 email=user.email,
-                phone_number=user.phone_number, 
                 password=new_password1
             )
             
@@ -332,7 +324,7 @@ def password_reset_confirm():
             is_strong, reason = verify_strong_password(
                 password1=password1, password2=password2,
                 first_name=user.first_name, last_name=user.last_name,
-                email=user.email or '', phone_number=user.phone_number
+                email=user.email or ''
             )
             if not is_strong:
                 LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
@@ -341,7 +333,6 @@ def password_reset_confirm():
             User.update_user_password(
                 session=session,
                 email=user.email,
-                phone_number=user.phone_number, 
                 password=password1
             )
             
