@@ -8,7 +8,7 @@ from models.exceptions import (
     InvalidTransactionStateError, TransactionValidationError
 )
 from constants.config import LOG_LEVEL
-from constants.constants import APP_LOG_FILE
+from constants.constants import APP_LOG_FILE, MAX_BORROW_LIMIT, LATE_FINE_AMOUNT, LOST_DAMAGE_FINE, VALID_TRANSACTION_STATUSES
 from utils.psql_database import get_db_session
 from utils.my_logger import CustomLogger
 from utils.timezone_utils import (
@@ -91,10 +91,8 @@ def check_borrowing_limit(session, customer: User) -> None:
         Transaction.status.in_(['PENDING', 'APPROVED', 'OPEN'])
     ).count()
     
-    borrowing_limit = customer.library_membership.borrowing_limit if customer.library_membership else 3
-    
-    if active_borrows >= borrowing_limit:
-        raise TransactionValidationError(f"Borrowing limit of {borrowing_limit} books reached")
+    if active_borrows >= MAX_BORROW_LIMIT:
+        raise TransactionValidationError(f"Borrowing limit of {MAX_BORROW_LIMIT} books reached")
 
 
 # -------------------- Customer Routes -------------------- #
