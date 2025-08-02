@@ -4,15 +4,16 @@ import jwt
 import datetime
 from typing import Dict, Tuple
 from sqlalchemy import select
-from models.library_user import LibraryUser
-from models.library_office import LibraryOffice
+from models.user import User
+from models.office import Office
 from models.exceptions import DuplicateUserError, WeakPasswordError
 from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
 from constants.constants import (
     AUTH_LOG_FILE, TOKEN_EXPIRY_HOURS, PASSWORD_RESET_EXPIRY_MINUTES,
     LOGIN_RATE_LIMIT_REQUESTS, LOGIN_RATE_LIMIT_WINDOW_MINUTES,
     REGISTER_RATE_LIMIT_REQUESTS, REGISTER_RATE_LIMIT_WINDOW_MINUTES,
-    PASSWORD_RESET_RATE_LIMIT_REQUESTS, PASSWORD_RESET_RATE_LIMIT_WINDOW_MINUTES
+    PASSWORD_RESET_RATE_LIMIT_REQUESTS, PASSWORD_RESET_RATE_LIMIT_WINDOW_MINUTES,
+    LIBRARY_ROLES
 )
 from utils.psql_database import get_db_session
 from utils.my_logger import CustomLogger
@@ -22,7 +23,7 @@ from utils.route_utils import (
     generate_nonce, validate_nonce, validate_request_data,
     token_required, rate_limit, nonce_store, get_device_info, session_required
 )
-from models.user_session import UserSession
+from models.session import Session
 from routes.referral_routes import validate_referral_token
 
 
@@ -33,12 +34,12 @@ LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=AUTH_LOG_FILE).get_log
 
 
 # -------------------- Utility Functions -------------------- #
-def generate_login_token(user: LibraryUser) -> str:
+def generate_login_token(user: User) -> str:
     """Generate JWT token for user login."""
     payload = {
         "user_id": user.user_id,
         "email": user.email,
-        "role": user.user_role.role,
+        "role": LIBRARY_ROLES[user.user_role],
         "exp": datetime.datetime.now() + datetime.timedelta(hours=TOKEN_EXPIRY_HOURS)
     }
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
@@ -124,14 +125,14 @@ def register():
 
         # Verify if library office exists
         session = get_db_session()
-        stmt = select(LibraryOffice).where(LibraryOffice.office_code == referral_data_dict['assigned_office'])
+        stmt = select(Office).where(Office.office_code == referral_data_dict['assigned_office'])
         office = session.execute(stmt).scalar_one_or_none()
         if not office:
             LOGGER.error(f"Office {referral_data_dict['assigned_office']} not found for user registration")
             return jsonify({"error": "Office not found for user registration"}), 400
         
         # Create user
-        new_user = LibraryUser.create_user(
+        new_user = User.create_user(
             session,
             first_name=data['first_name'],
             last_name=data['last_name'],
@@ -183,12 +184,12 @@ def login():
         with get_db_session() as session:
             user = None
             if data.get('phone_number'):
-                user = session.query(LibraryUser).filter_by(
+                user = session.query(User).filter_by(
                     phone_number=data['phone_number'], 
                     account_status='ACTIVE'
                 ).first()
             elif data.get('email'):
-                user = session.query(LibraryUser).filter_by(
+                user = session.query(User).filter_by(
                     email=data['email'], 
                     account_status='ACTIVE'
                 ).first()
@@ -206,7 +207,7 @@ def login():
             ip_address = request.remote_addr
             
             # Create user session
-            user_session = UserSession.create_session(
+            user_session = Session.create_session(
                 session=session,
                 user_uuid=user.user_uuid, 
                 device_id=device_id or 'unknown',
@@ -218,7 +219,7 @@ def login():
             response = make_response(jsonify({
                 "message": "Login successful",
                 "user_id": user.user_id,
-                "role": user.user_role.role,
+                "role": LIBRARY_ROLES[user.user_role],
                 "session_expires_at": user_session.expires_at.isoformat()
             }))
             
@@ -259,7 +260,7 @@ def reset_password_authenticated():
         user_email = g.current_user['email']
         
         with get_db_session() as session:
-            user = session.query(LibraryUser).filter_by(email=user_email).first()
+            user = session.query(User).filter_by(email=user_email).first()
 
             if not user or not user.check_password(old_password):
                 return jsonify({
@@ -275,7 +276,7 @@ def reset_password_authenticated():
                 LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
                 raise WeakPasswordError(reason)
 
-            LibraryUser.update_user_password(
+            User.update_user_password(
                 session=session,
                 email=user.email,
                 phone_number=user.phone_number, 
@@ -283,12 +284,12 @@ def reset_password_authenticated():
             )
             
             # Invalidate all other sessions except current one for security
-            all_sessions = UserSession.get_active_sessions(session, user.user_uuid)
+            all_sessions = Session.get_active_sessions(session, user.user_uuid)
             current_session_id = g.session_id
             
             for user_session in all_sessions:
                 if user_session.session_id != current_session_id:
-                    UserSession.invalidate_session(session, user_session.session_id)
+                    Session.invalidate_session(session, user_session.session_id)    
             
             LOGGER.info(f"User '{user.user_id}' changed password successfully. Other sessions invalidated.")
             return jsonify({"message": "Password changed successfully. Other active sessions have been logged out."}), 200
@@ -354,7 +355,7 @@ def password_reset_confirm():
         email = decoded_data.get("email")
         
         with get_db_session() as session:
-            user = session.query(LibraryUser).filter_by(email=email).first()
+            user = session.query(User).filter_by(email=email).first()
             
             if not user:
                 return jsonify({
@@ -370,7 +371,7 @@ def password_reset_confirm():
                 LOGGER.error(f"Weak password for user '{user.user_id}': {reason}")
                 raise WeakPasswordError(reason)
 
-            LibraryUser.update_user_password(
+            User.update_user_password(
                 session=session,
                 email=user.email,
                 phone_number=user.phone_number, 
@@ -378,7 +379,7 @@ def password_reset_confirm():
             )
             
             # Invalidate all existing sessions for security
-            UserSession.deactivate_all_sessions(session, user.user_uuid)
+            Session.deactivate_all_sessions(session, user.user_uuid)
             
             LOGGER.info(f"User '{user.user_id}' reset password successfully. All sessions invalidated.")
             return jsonify({"message": "Password reset successfully. Please login again."}), 200
@@ -402,7 +403,7 @@ def get_session_info():
         session_id = g.session_id
         
         with get_db_session() as session:
-            user_session = UserSession.get_session_by_id(session, session_id)
+            user_session = Session.get_session_by_id(session, session_id)
             
             if not user_session:
                 return jsonify({
@@ -434,8 +435,8 @@ def refresh_session():
         session_id = g.session_id
         
         with get_db_session() as session:
-            if UserSession.refresh_session(session, session_id):
-                user_session = UserSession.get_session_by_id(session, session_id)
+            if Session.refresh_session(session, session_id):
+                user_session = Session.get_session_by_id(session, session_id)
                 LOGGER.info(f"Session '{session_id}' refreshed manually by user '{g.current_user['user_id']}'.")
                 return jsonify({
                     "message": "Session refreshed successfully",
@@ -461,7 +462,7 @@ def logout():
         session_id = g.session_id
         
         with get_db_session() as session:
-            UserSession.invalidate_session(session, session_id)
+            Session.invalidate_session(session, session_id)
             
         # Clear session cookie
         response = make_response(jsonify({"message": "Logged out successfully"}))
@@ -485,12 +486,12 @@ def logout_all():
         
         with get_db_session() as session:
             # Get user to find user_uuid
-            user = session.query(LibraryUser).filter_by(user_id=user_id).first()
+            user = session.query(User).filter_by(user_id=user_id).first()
             if not user:
                 return jsonify({"error": "User not found"}), 404
             
             # Deactivate all sessions
-            deactivated_count = UserSession.deactivate_all_sessions(session, user.user_uuid)
+            deactivated_count = Session.deactivate_all_sessions(session, user.user_uuid)
             
         # Clear session cookie
         response = make_response(jsonify({
@@ -517,12 +518,12 @@ def get_user_sessions():
         
         with get_db_session() as session:
             # Get user to find user_uuid
-            user = session.query(LibraryUser).filter_by(user_id=user_id).first()
+            user = session.query(User).filter_by(user_id=user_id).first()
             if not user:
                 return jsonify({"error": "User not found"}), 404
             
             # Get active sessions
-            active_sessions = UserSession.get_active_sessions(session, user.user_uuid)
+            active_sessions = Session.get_active_sessions(session, user.user_uuid)
             
             sessions_data = []
             for user_session in active_sessions:
