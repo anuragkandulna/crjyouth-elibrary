@@ -27,7 +27,6 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(30), nullable=False)
     last_name: Mapped[str] = mapped_column(String(30), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
-    phone_number: Mapped[str] = mapped_column(String(15), unique=True, nullable=False)
     registration_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=utc_now, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     account_status: Mapped[str] = mapped_column(ForeignKey('status_codes.code'), default='UNVERIFIED', nullable=False)
@@ -62,22 +61,23 @@ class User(Base):
 
 
     @classmethod
-    def create_user(cls, session: Session, first_name: str, last_name: str,
-                    email: str, phone_number: str, password: str,
+    def create_user(cls, session: Session,
+                    first_name: str, last_name: str,
+                    email: str, password: str,
                     seed_user_id: Optional[int] = None) -> "User":
 
         is_strong, reason = verify_strong_password(
             password1=password, first_name=first_name,
-            last_name=last_name, email=email, phone_number=phone_number
+            last_name=last_name, email=email
         )
         if not is_strong:
             LOGGER.error(f"Weak password for {email}: {reason}")
             raise WeakPasswordError(reason)
 
-        stmt = select(cls).where((cls.email == email) | (cls.phone_number == phone_number))
+        stmt = select(cls).where(cls.email == email)
         if session.execute(stmt).scalar_one_or_none():
-            LOGGER.error(f"Duplicate email or phone: {email}, {phone_number}")
-            raise DuplicateUserError("User with email or phone number already exists.")
+            LOGGER.error(f"Duplicate email: {email}")
+            raise DuplicateUserError("User with email already exists.")
 
         max_attempts = 5
         for attempt in range(max_attempts):
@@ -97,7 +97,6 @@ class User(Base):
             first_name=first_name,
             last_name=last_name,
             email=email,
-            phone_number=phone_number,
             password_hash=generate_password_hash(password)
         )
         session.add(new_user)
@@ -107,21 +106,20 @@ class User(Base):
 
 
     @staticmethod
-    def view_user(session: Session, email: Optional[str], phone_number: str) -> dict:
+    def view_user(session: Session, email: Optional[str]) -> dict:
         stmt = select(User).where(
-            ((User.email == email) | (User.phone_number == phone_number)) if email else (User.phone_number == phone_number),
+            User.email == email,
             User.account_status.in_(['ACTIVE', 'BLOCKED'])
         )
         user = session.execute(stmt).scalar_one_or_none()
         if not user:
-            LOGGER.error(f"User not found for email={email}, phone={phone_number}")
+            LOGGER.error(f"User not found for email={email}")
             raise UserNotFoundError("User does not exist or is inactive.")
         LOGGER.info(f"Viewed user: {user.user_id}")
         return {
             "User ID": user.user_id,
             "Name": f"{user.first_name} {user.last_name}",
             "Email": user.email,
-            "Phone": user.phone_number,
             "Status": user.account_status,
             "Role": LIBRARY_ROLES[user.user_role]
         }
@@ -129,14 +127,13 @@ class User(Base):
 
     @staticmethod
     def edit_user(session: Session, **kwargs) -> None:
-        identifier = kwargs.get("email") or kwargs.get("phone_number")
+        identifier = kwargs.get("email")
         if not identifier:
             LOGGER.error("Missing identifier in edit_user")
-            raise KeyError("Missing 'email' or 'phone_number' key in parameters.")
+            raise KeyError("Missing 'email' key in parameters.")
 
         stmt = select(User).where(
-            ((User.email == kwargs["email"]) | (User.phone_number == kwargs["phone_number"])) if kwargs.get("email")
-            else (User.phone_number == kwargs["phone_number"]),
+            User.email == kwargs["email"],
             User.account_status.in_(['ACTIVE', 'BLOCKED'])
         )
         user = session.execute(stmt).scalar_one_or_none()
@@ -156,19 +153,19 @@ class User(Base):
 
 
     @staticmethod
-    def update_user_password(session: Session, email: Optional[str], phone_number: str, password: str) -> None:
+    def update_user_password(session: Session, email: Optional[str], password: str) -> None:
         stmt = select(User).where(
-            ((User.email == email) | (User.phone_number == phone_number)) if email else (User.phone_number == phone_number),
+            User.email == email,
             User.account_status.in_(['ACTIVE', 'BLOCKED'])
         )
         user = session.execute(stmt).scalar_one_or_none()
         if not user:
-            LOGGER.error(f"User not found for password reset: {email}, {phone_number}")
+            LOGGER.error(f"User not found for password reset: {email}")
             raise UserNotFoundError("User does not exist or is inactive.")
 
         is_strong, reason = verify_strong_password(
             password1=password, first_name=user.first_name,
-            last_name=user.last_name, email=user.email or '', phone_number=user.phone_number
+            last_name=user.last_name, email=user.email or ''
         )
         if not is_strong:
             LOGGER.error(f"Weak password for user {user.user_id}: {reason}")
@@ -180,14 +177,14 @@ class User(Base):
 
 
     @staticmethod
-    def delete_user(session: Session, email: Optional[str], phone_number: str) -> None:
+    def delete_user(session: Session, email: Optional[str]) -> None:
         stmt = select(User).where(
-            ((User.email == email) | (User.phone_number == phone_number)) if email else (User.phone_number == phone_number),
+            User.email == email,
             User.account_status.in_(['ACTIVE', 'BLOCKED'])
         )
         user = session.execute(stmt).scalar_one_or_none()
         if not user:
-            LOGGER.error(f"User not found for delete: {email}, {phone_number}")
+            LOGGER.error(f"User not found for delete: {email}")
             raise UserNotFoundError("User does not exist or is inactive.")
 
         user.account_status = 'INACTIVE'
