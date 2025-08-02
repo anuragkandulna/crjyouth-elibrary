@@ -5,9 +5,9 @@ from models.base import Base
 from utils.my_logger import CustomLogger
 from constants.constants import OPS_LOG_FILE
 from constants.config import LOG_LEVEL
-from models.exceptions import DuplicateBookCopyError, BookCopyNotFound, BookNotFoundError, LibraryOfficeNotFound
+from models.exceptions import DuplicateBookCopyError, BookCopyNotFound, BookNotFoundError, OfficeNotFoundError
 from models.book import Book
-from models.library_office import LibraryOffice
+from models.office import Office
 
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
 
@@ -18,12 +18,12 @@ class BookCopy(Base):
     copy_uuid: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     copy_id: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     book_id: Mapped[str] = mapped_column(ForeignKey('books.book_id'), nullable=False)
-    branch_code: Mapped[int] = mapped_column(ForeignKey('library_offices.office_code'), nullable=False)
+    branch_code: Mapped[int] = mapped_column(ForeignKey('offices.code'), nullable=False)
     copy_number: Mapped[int] = mapped_column(nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)
 
     book = relationship("Book", back_populates="copies")
-    branch = relationship("LibraryOffice", backref="book_copies")
+    branch = relationship("Office", backref="book_copies")
 
 
     @classmethod
@@ -48,10 +48,10 @@ class BookCopy(Base):
         if not book:
             raise BookNotFoundError(f"Invalid book_id '{book_id}'")
 
-        stmt = select(LibraryOffice).where(LibraryOffice.office_code == branch_code)
+        stmt = select(Office).where(Office.code == branch_code)
         branch = session.execute(stmt).scalar_one_or_none()
         if not branch:
-            raise LibraryOfficeNotFound(f"Invalid branch_code '{branch_code}'")
+            raise OfficeNotFoundError(f"Invalid branch_code '{branch_code}'")
 
         copy_number = cls.get_next_copy_number(session, book_id)
         copy_id = cls.generate_copy_id(branch_code, book_id, copy_number)
