@@ -1,0 +1,5 @@
+[
+    { "name": "English", "description": "English language edition" },
+    { "name": "Hindi", "description": "Hindi language edition" },
+    { "name": "Bengali", "description": "Bengali language edition" }
+]

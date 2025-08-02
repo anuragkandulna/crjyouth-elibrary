@@ -1,0 +1,46 @@
+[
+    {
+        "name": "Bible",
+        "description": "Canonical Holy Bible used for reading and study"
+    },
+    {
+        "name": "Study Bible",
+        "description": "Bible editions with footnotes, commentaries, or maps"
+    },
+    {
+        "name": "Commentary Bible",
+        "description": "Verse-by-verse or chapter-wise theological commentary"
+    },
+    {
+        "name": "Concordance Bible",
+        "description": "Indexed references to verses or keywords in the Bible"
+    },
+    {
+        "name": "Literature",
+        "description": "General Christian literature books"
+    },
+    {
+        "name": "Shorts",
+        "description": "Short Christian stories or devotionals"
+    },
+    {
+        "name": "Comprehensive Literature",
+        "description": "Complete works or volumes of notable authors"
+    },
+    {
+        "name": "Daily Bread",
+        "description": "Daily devotional readings (e.g., Our Daily Bread)"
+    },
+    {
+        "name": "Autobiography",
+        "description": "Personal life stories of Christian figures"
+    },
+    {
+        "name": "Other",
+        "description": "Books that don't fit standard categories"
+    },
+    {
+        "name": "Story",
+        "description": "Christian fiction or storytelling books"
+    }
+]

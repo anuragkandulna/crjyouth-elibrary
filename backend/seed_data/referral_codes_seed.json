@@ -1,0 +1,62 @@
+[
+    {
+        "code_owner": "DHN072500001001",
+        "invited_phone": "9876543210",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "MIH072500001002",
+        "invited_phone": "9876543211",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "DHN072500001003",
+        "invited_phone": "9876543212",
+        "assigned_office": "DHN01",
+        "is_active": false
+    },
+    {
+        "code_owner": "DHN072500001001",
+        "invited_phone": "9876543213",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "MIH072500001002",
+        "invited_phone": "9876543214",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "DHN072500001003",
+        "invited_phone": "9876543215",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "DHN072500001001",
+        "invited_phone": "9876543216",
+        "assigned_office": "DHN01",
+        "is_active": false
+    },
+    {
+        "code_owner": "MIH072500001002",
+        "invited_phone": "9876543217",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "DHN072500001003",
+        "invited_phone": "9876543218",
+        "assigned_office": "DHN01",
+        "is_active": true
+    },
+    {
+        "code_owner": "DHN072500001001",
+        "invited_phone": "9876543219",
+        "assigned_office": "DHN01",
+        "is_active": true
+    }
+]

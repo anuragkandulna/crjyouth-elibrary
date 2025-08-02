@@ -1,0 +1,20 @@
+{
+    "DHN01": {
+        "office_tag": "DHN",
+        "office_num": 1,
+        "address": "JJNPC",
+        "city": "Dhanbad",
+        "state": "Jharkhand",
+        "country": "India",
+        "pincode": "828307"
+    },
+    "MIH01": {
+        "office_tag": "MIH",
+        "office_num": 1,
+        "address": "JJNPC",
+        "city": "Mihijam",
+        "state": "Jharkhand",
+        "country": "India",
+        "pincode": "815354"
+    }
+}

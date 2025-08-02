@@ -1,0 +1,37 @@
+[
+    {
+        "tier": 1,
+        "difficulty_class": "Advanced",
+        "difficulty_value": 2,
+        "description": "Advanced difficulty research based and controversial books recommended for pastors only",
+        "is_private": true
+    },
+    {
+        "tier": 2,
+        "difficulty_class": "Advanced",
+        "difficulty_value": 1,
+        "description": "Advanced difficulty conceptual books for faith workers and other leaders",
+        "is_private": true
+    },
+    {
+        "tier": 3,
+        "difficulty_class": "Intermediate",
+        "difficulty_value": 2,
+        "description": "Intermediate level conceptual books any mature believer with spiritual maturity of 5 years and above",
+        "is_private": false
+    },
+    {
+        "tier": 4,
+        "difficulty_class": "Intermediate",
+        "difficulty_value": 1,
+        "description": "Intermediate level conceptual books any mature believer with spiritual maturity of 3 to 5 years",
+        "is_private": false
+    },
+    {
+        "tier": 5,
+        "difficulty_class": "Beginner",
+        "difficulty_value": null,
+        "description": "Basic foundational concepts books for any new believers",
+        "is_private": false
+    }
+]

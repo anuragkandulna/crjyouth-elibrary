@@ -1,0 +1,47 @@
+[
+    {
+        "code": "PAS1",
+        "title": "Pastors",
+        "weight": 1,
+        "min_years": 1,
+        "max_years": 120,
+        "is_special_class": true,
+        "description": "Pastors who are already ordained within JJNPC and strong pastoral trainee recommended by other senior pastors"
+    },
+    {
+        "code": "FW5N",
+        "title": "Faith Workers",
+        "weight": 2,
+        "min_years": 1,
+        "max_years": 120,
+        "is_special_class": true,
+        "description": "Believer who is an active faith worker of JJNPC with spiritual maturity of at least 5 years"
+    },
+    {
+        "code": "MB5N",
+        "title": "Mature believers 5+",
+        "weight": 3,
+        "min_years": 1,
+        "max_years": 120,
+        "is_special_class": false,
+        "description": "Mature believer who is long standing in faith for more than 5 years"
+    },
+    {
+        "code": "MB35",
+        "title": "Mature believers 3-5",
+        "weight": 4,
+        "min_years": 3,
+        "max_years": 5,
+        "is_special_class": false,
+        "description": "Mature believer who is already walking in faith for around 3-5 years"
+    },
+    {
+        "code": "BB03",
+        "title": "Baby believers",
+        "weight": 5,
+        "min_years": 3,
+        "max_years": 5,
+        "is_special_class": false,
+        "description": "New born believer who has recently come to faith and has spiritual maturity less than 3 years"
+    }
+]

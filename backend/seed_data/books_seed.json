@@ -1,0 +1,26 @@
+[
+    [
+        101,
+        "Test Book 1",
+        null,
+        "BSIN",
+        "Bible",
+        "English",
+        2001,
+        120.0,
+        "Bible",
+        { "Intro": 1, "OT": 10, "NT": 1000 }
+    ],
+    [
+        102,
+        "Test Book 2",
+        "BG",
+        "ODBM",
+        "Story",
+        "Hindi",
+        2005,
+        150.0,
+        "Story",
+        {}
+    ]
+]

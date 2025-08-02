@@ -1,0 +1,17 @@
+{
+    "1": [
+        "Admin",
+        [
+            "add_book",
+            "edit_book",
+            "delete_book",
+            "approve_lending",
+            "manage_users"
+        ]
+    ],
+    "2": ["Moderator", ["approve_lending", "manage_threads", "resolve_issues"]],
+    "3": [
+        "Member",
+        ["borrow_book", "return_book", "suggest_book", "participate_threads"]
+    ]
+}

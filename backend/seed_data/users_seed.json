@@ -1,0 +1,53 @@
+[
+    {
+        "first_name": "Admin",
+        "last_name": "User",
+        "email": "admin@textgpt.live",
+        "phone_number": "1111111111",
+        "password": "J4j>$U13&]Cn",
+        "role": 1,
+        "membership_type": 1,
+        "address_line_1": "Admin Main Office",
+        "address_line_2": "",
+        "city": "Dhanbad",
+        "state": "Jharkhand",
+        "country": "India",
+        "postal_code": "828307",
+        "registered_at_office": "DHN01",
+        "sequence_number": 1001
+    },
+    {
+        "first_name": "Mod",
+        "last_name": "User",
+        "email": "mod@textgpt.live",
+        "phone_number": "2222222222",
+        "password": "8D8*utJ$p9n8",
+        "role": 2,
+        "membership_type": 2,
+        "address_line_1": "Moderator Street 123",
+        "address_line_2": "Apt 4B",
+        "city": "Mihijam",
+        "state": "Jharkhand",
+        "country": "India",
+        "postal_code": "815354",
+        "registered_at_office": "MIH01",
+        "sequence_number": 1002
+    },
+    {
+        "first_name": "Member",
+        "last_name": "User",
+        "email": "member@textgpt.live",
+        "phone_number": "3333333333",
+        "password": "c8z3*nN98y*#",
+        "role": 3,
+        "membership_type": 5,
+        "address_line_1": "Member Avenue 456",
+        "address_line_2": "",
+        "city": "Dhanbad",
+        "state": "Jharkhand",
+        "country": "India",
+        "postal_code": "828307",
+        "registered_at_office": "DHN01",
+        "sequence_number": 1003
+    }
+]

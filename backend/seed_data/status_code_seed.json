@@ -1,0 +1,17 @@
+[
+    ["ACTIVE", "ACCOUNT", "Active library user account"],
+    ["INACTIVE", "ACCOUNT", "Deactivated library user account"],
+    ["BLACKLIST", "ACCOUNT", "Permanently blacklisted library user account"],
+    ["UNVERIFIED", "ACCOUNT", "Awaiting user email or phone verification"],
+    ["SUSPENDED", "ACCOUNT", "User account under review for policy violations"],
+    ["EXPIRED", "ACCOUNT", "User membership expired due to non-renewal"],
+    ["INVITED", "ACCOUNT", "User was invited but hasn't registered yet"],
+    
+    ["PENDING", "TRANSACTION", "Transaction is pending approval by library staff"],
+    ["APPROVED", "TRANSACTION", "Transaction is approved by library staff and ready to be handed out"],
+    ["OPEN", "TRANSACTION", "Book is currently borrowed by user"],
+    ["CLOSED", "TRANSACTION", "Transaction is closed by staff "],
+    ["REJECTED", "TRANSACTION", "Transaction is rejected by library staff or user"],
+    ["OVERDUE", "TRANSACTION", "Due date has passed on open transaction"],
+    ["ESCALATED", "TRANSACTION", "Transaction is escalated to admin for decision"]
+]
