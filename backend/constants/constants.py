@@ -1,3 +1,9 @@
+LIBRARY_ROLES = {
+    1: 'ADMIN',
+    2: 'MODERATOR',
+    3: 'MEMBER'
+}
+
 TOKEN_PRICES = {
     'S1': 10.0,
     'S2': 25.0,
