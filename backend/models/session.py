@@ -7,12 +7,12 @@ from typing import Optional, List
 from models.base import Base
 from utils.my_logger import CustomLogger
 from utils.timezone_utils import utc_now, utc_datetime, add_time
-from constants.constants import AUTH_LOG_FILE
+from constants.constants import APP_LOG_FILE
 from constants.config import LOG_LEVEL
 
 
 
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=AUTH_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 
 class Session(Base):

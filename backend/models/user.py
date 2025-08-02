@@ -10,13 +10,13 @@ from models.base import Base
 from utils.security import generate_password_hash, check_password_hash, verify_strong_password
 from utils.timezone_utils import utc_now
 from utils.my_logger import CustomLogger
-from constants.constants import OPS_LOG_FILE, LIBRARY_ROLES
+from constants.constants import APP_LOG_FILE, LIBRARY_ROLES
 from constants.config import LOG_LEVEL
 from models.exceptions import (
     DuplicateUserError, UserNotFoundError, WeakPasswordError, DuplicateUserIdError
 )
 
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 
 class User(Base):

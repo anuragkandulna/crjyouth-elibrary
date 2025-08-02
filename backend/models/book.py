@@ -2,13 +2,13 @@ from sqlalchemy import String, Integer, ForeignKey, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from uuid import uuid4
 from typing import Optional
-from constants.constants import OPS_LOG_FILE
+from constants.constants import APP_LOG_FILE
 from models.base import Base
 from utils.my_logger import CustomLogger
 from constants.config import LOG_LEVEL
 from models.exceptions import DuplicateBookError, BookNotFoundError
 
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 
 class Book(Base):

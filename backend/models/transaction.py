@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 import random
 from typing import Optional
-from constants.constants import OPS_LOG_FILE
+from constants.constants import APP_LOG_FILE
 from models.base import Base
 from utils.timezone_utils import utc_now
 from models.user import User
@@ -14,7 +14,7 @@ from models.exceptions import (
     DuplicateTransactionError, TransactionNotFoundError, TransactionValidationError
 )
 
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 
 class Transaction(Base):
