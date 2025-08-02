@@ -1,0 +1,14 @@
+{
+    "1": {
+        "name": "Central Library",
+        "address": "123 Main Street",
+        "city": "Oxford",
+        "pincode": "OX1 1AA"
+    },
+    "2": {
+        "name": "Downtown Branch",
+        "address": "456 High Street",
+        "city": "Cambridge",
+        "pincode": "CB1 1AA"
+    }
+}

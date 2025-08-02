@@ -1,0 +1,17 @@
+[
+    {
+        "ticket_id": 1001,
+        "office_code": 1,
+        "customer_id": 1001,
+        "librarian_id": 1001,
+        "customer_name": "Admin User",
+        "copy_id": "01001001",
+        "status": "borrowed",
+        "particulars": "Book borrowed for reading",
+        "remarks": "Test transaction",
+        "ticket_updated_date": "2024-01-01T00:00:00Z",
+        "book_borrow_date": "2024-01-01T00:00:00Z",
+        "book_due_date": "2024-02-01T00:00:00Z",
+        "fine_incurred": 0.0
+    }
+]
