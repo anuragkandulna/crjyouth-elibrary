@@ -12,10 +12,10 @@ from constants.constants import APP_LOG_FILE
 from utils.psql_database import get_db_session
 from utils.my_logger import CustomLogger
 from utils.timezone_utils import (
-    utc_now, utc_date_only, add_days_to_date, add_weeks_to_date, 
+    utc_date_only, add_weeks_to_date, 
     is_date_past_due, calculate_weeks_overdue
 )
-from utils.route_utils import token_required, role_required, rate_limit, validate_request_data, validate_status_transition, session_required
+from utils.route_utils import role_required, rate_limit, validate_request_data, session_required
 
 
 # Blueprint setup
@@ -459,7 +459,7 @@ def return_book(ticket_id: str):
     try:
         with get_db_session() as session:
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='OPEN'
             ).first()
@@ -724,7 +724,7 @@ def view_transaction(ticket_id: str):
                 raise TransactionNotFoundError("Transaction not found")
             
             # Customers can only view their own transactions
-            if current_user.user_role.role == 'CUSTOMER' and transaction.customer_id != current_user.user_id:
+            if current_user.user_role == 3 and transaction.customer_id != current_user.user_id:
                 return jsonify({"error": "Access forbidden"}), 403
             
             # Use model's CRUD operation
