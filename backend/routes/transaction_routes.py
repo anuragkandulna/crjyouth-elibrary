@@ -1,14 +1,14 @@
 from flask import Blueprint, request, jsonify, g
 from typing import Dict, Tuple
-from models.library_user import LibraryUser
-from models.library_transaction import LibraryTransaction
+from models.user import User
+from models.transaction import Transaction
 from models.book_copy import BookCopy
 from models.exceptions import (
     DuplicateTransactionError, TransactionNotFoundError, 
     InvalidTransactionStateError, TransactionValidationError
 )
 from constants.config import LOG_LEVEL
-from constants.constants import TRANSACTION_LOG_FILE, EXTENSION_DAYS
+from constants.constants import APP_LOG_FILE
 from utils.psql_database import get_db_session
 from utils.my_logger import CustomLogger
 from utils.timezone_utils import (
@@ -20,7 +20,7 @@ from utils.route_utils import token_required, role_required, rate_limit, validat
 
 # Blueprint setup
 transaction_bp = Blueprint('transaction_bp', __name__, url_prefix='/api/v1/transactions')
-LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=TRANSACTION_LOG_FILE).get_logger()
+LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
 
 
 # -------------------- Utility Functions -------------------- #
@@ -40,16 +40,16 @@ def handle_transaction_error(error: Exception, context: str, status_code: int = 
         return {"error": "Internal server error"}, status_code
 
 
-def get_current_user_from_db(session) -> LibraryUser:
+def get_current_user_from_db(session) -> User:
     """Get current user from database using token data."""
     user_id = g.current_user['user_id']
-    user = session.query(LibraryUser).filter_by(user_id=user_id).first()
+    user = session.query(User).filter_by(user_id=user_id).first()
     if not user:
         raise TransactionValidationError("User not found")
     return user
 
 
-def validate_borrowing_eligibility(session, customer: LibraryUser) -> None:
+def validate_borrowing_eligibility(session, customer: User) -> None:
     """Validate if customer is eligible to borrow books."""
     # Check if customer has active membership
     if not hasattr(customer, 'library_membership') or not customer.library_membership:
@@ -60,11 +60,11 @@ def validate_borrowing_eligibility(session, customer: LibraryUser) -> None:
         raise TransactionValidationError("Account is not active")
     
     # Check for unpaid fines
-    unpaid_fine_transactions = session.query(LibraryTransaction).filter(
-        LibraryTransaction.customer_id == customer.user_id,
-        LibraryTransaction.fine_incurred > 0,
-        LibraryTransaction.fine_forgiven == False,
-        LibraryTransaction.status == 'CLOSED'
+    unpaid_fine_transactions = session.query(Transaction).filter(
+        Transaction.customer_id == customer.user_id,
+        Transaction.fine_incurred > 0,
+        Transaction.fine_forgiven == False,
+        Transaction.status == 'CLOSED'
     ).all()
     
     total_unpaid_fines = sum(t.fine_incurred for t in unpaid_fine_transactions)
@@ -84,11 +84,11 @@ def validate_book_availability(session, copy_id: str) -> BookCopy:
     return book_copy
 
 
-def check_borrowing_limit(session, customer: LibraryUser) -> None:
+def check_borrowing_limit(session, customer: User) -> None:
     """Check if customer has reached borrowing limit."""
-    active_borrows = session.query(LibraryTransaction).filter(
-        LibraryTransaction.customer_id == customer.user_id,
-        LibraryTransaction.status.in_(['PENDING', 'APPROVED', 'OPEN'])
+    active_borrows = session.query(Transaction).filter(
+        Transaction.customer_id == customer.user_id,
+        Transaction.status.in_(['PENDING', 'APPROVED', 'OPEN'])
     ).count()
     
     borrowing_limit = customer.library_membership.borrowing_limit if customer.library_membership else 3
@@ -120,7 +120,7 @@ def request_book():
             validate_book_availability(session, data['copy_id'])
             
             # Create transaction using model's CRUD operation
-            transaction = LibraryTransaction.create_transaction(
+            transaction = Transaction.create_transaction(
                 session=session,
                 customer=customer,
                 copy_id=data['copy_id'],
@@ -150,7 +150,7 @@ def extend_due_date(ticket_id: str):
             customer = get_current_user_from_db(session)
             
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 customer_id=customer.user_id,
                 status='OPEN'
@@ -176,7 +176,7 @@ def extend_due_date(ticket_id: str):
             new_particulars = transaction.particulars + " [EXTENDED]"
             
             # Use model's CRUD operation
-            LibraryTransaction.edit_transaction(
+            Transaction.edit_transaction(
                 session=session,
                 ticket_id=ticket_id,
                 book_due_date=new_due_date,
@@ -202,9 +202,9 @@ def get_my_transactions():
             customer = get_current_user_from_db(session)
             
             # Business logic: Query user transactions
-            transactions = session.query(LibraryTransaction).filter_by(
+            transactions = session.query(Transaction).filter_by(
                 customer_id=customer.user_id
-            ).order_by(LibraryTransaction.ticket_created_date.desc()).all()
+            ).order_by(Transaction.ticket_created_date.desc()).all()
             
             # Convert to dict format
             transaction_list = []
@@ -243,10 +243,10 @@ def get_my_active_transactions():
             customer = get_current_user_from_db(session)
             
             # Business logic: Query active transactions
-            transactions = session.query(LibraryTransaction).filter(
-                LibraryTransaction.customer_id == customer.user_id,
-                LibraryTransaction.status.in_(['PENDING', 'APPROVED', 'OPEN'])
-            ).order_by(LibraryTransaction.ticket_created_date.desc()).all()
+            transactions = session.query(Transaction).filter(
+                Transaction.customer_id == customer.user_id,
+                Transaction.status.in_(['PENDING', 'APPROVED', 'OPEN'])
+            ).order_by(Transaction.ticket_created_date.desc()).all()
             
             # Convert to dict format
             transaction_list = []
@@ -293,7 +293,7 @@ def create_ticket():
             
             # Business logic: Validate customer if provided
             if customer_id:
-                customer = session.query(LibraryUser).filter_by(user_id=customer_id).first()
+                customer = session.query(User).filter_by(user_id=customer_id).first()
                 if customer:
                     validate_borrowing_eligibility(session, customer)
                     check_borrowing_limit(session, customer)
@@ -303,7 +303,7 @@ def create_ticket():
                 validate_book_availability(session, data['copy_id'])
             
             # Create transaction using model's CRUD operation
-            transaction = LibraryTransaction.create_staff_transaction(
+            transaction = Transaction.create_staff_transaction(
                 session=session,
                 librarian=librarian,
                 office_code=data['office_code'],
@@ -338,7 +338,7 @@ def approve_transaction(ticket_id: str):
             librarian = get_current_user_from_db(session)
             
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='PENDING'
             ).first()
@@ -396,7 +396,7 @@ def issue_book(ticket_id: str):
     try:
         with get_db_session() as session:
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='APPROVED'
             ).first()
@@ -492,7 +492,7 @@ def return_book(ticket_id: str):
                 fine_amount = weeks_overdue * fine_per_week
                 
                 # Business logic: Check founder/pastor exemptions
-                customer = session.query(LibraryUser).filter_by(user_id=transaction.customer_id).first()
+                customer = session.query(User).filter_by(user_id=transaction.customer_id).first()
                 if customer and (customer.is_founder or (customer.maturity_level and customer.maturity_level.title == "PASTOR")):
                     fine_amount = 0.0  # Founder/Pastor exempt from fines
                 
@@ -565,7 +565,7 @@ def reject_transaction(ticket_id: str):
             librarian = get_current_user_from_db(session)
             
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='PENDING'
             ).first()
@@ -618,7 +618,7 @@ def escalate_for_fine_forgiveness(ticket_id: str):
             librarian = get_current_user_from_db(session)
             
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='CLOSED'
             ).first()
@@ -670,7 +670,7 @@ def forgive_fine(ticket_id: str):
             admin = get_current_user_from_db(session)
             
             # Business logic: Find and validate transaction
-            transaction = session.query(LibraryTransaction).filter_by(
+            transaction = session.query(Transaction).filter_by(
                 ticket_id=ticket_id,
                 status='ESCALATED'
             ).first()
@@ -719,7 +719,7 @@ def view_transaction(ticket_id: str):
             current_user = get_current_user_from_db(session)
             
             # Business logic: Check if user can view this transaction
-            transaction = session.query(LibraryTransaction).filter_by(ticket_id=ticket_id).first()
+            transaction = session.query(Transaction).filter_by(ticket_id=ticket_id).first()
             if not transaction:
                 raise TransactionNotFoundError("Transaction not found")
             
@@ -728,7 +728,7 @@ def view_transaction(ticket_id: str):
                 return jsonify({"error": "Access forbidden"}), 403
             
             # Use model's CRUD operation
-            transaction_data = LibraryTransaction.view_transaction(session, ticket_id)
+            transaction_data = Transaction.view_transaction(session, ticket_id)
             
             return jsonify({"transaction": transaction_data}), 200
             
@@ -745,9 +745,9 @@ def get_pending_transactions():
     try:
         with get_db_session() as session:
             # Business logic: Query pending transactions
-            transactions = session.query(LibraryTransaction).filter_by(
+            transactions = session.query(Transaction).filter_by(
                 status='PENDING'
-            ).order_by(LibraryTransaction.ticket_created_date.asc()).all()
+            ).order_by(Transaction.ticket_created_date.asc()).all()
             
             # Convert to dict format
             transaction_list = []
@@ -783,10 +783,10 @@ def get_overdue_transactions():
             current_date = utc_date_only()
             
             # Business logic: Query overdue transactions
-            transactions = session.query(LibraryTransaction).filter(
-                LibraryTransaction.status == 'OPEN',
-                LibraryTransaction.book_due_date < current_date
-            ).order_by(LibraryTransaction.book_due_date.asc()).all()
+            transactions = session.query(Transaction).filter(
+                Transaction.status == 'OPEN',
+                Transaction.book_due_date < current_date
+            ).order_by(Transaction.book_due_date.asc()).all()
             
             # Convert to dict format with overdue calculations
             transaction_list = []
@@ -823,9 +823,9 @@ def get_escalated_transactions():
     try:
         with get_db_session() as session:
             # Business logic: Query escalated transactions
-            transactions = session.query(LibraryTransaction).filter_by(
+            transactions = session.query(Transaction).filter_by(
                 status='ESCALATED'
-            ).order_by(LibraryTransaction.ticket_updated_date.asc()).all()
+            ).order_by(Transaction.ticket_updated_date.asc()).all()
             
             # Convert to dict format
             transaction_list = []
@@ -863,9 +863,9 @@ def mark_overdue_transactions():
             current_date = utc_date_only()
             
             # Business logic: Find open transactions past due date
-            overdue_transactions = session.query(LibraryTransaction).filter(
-                LibraryTransaction.status == 'OPEN',
-                LibraryTransaction.book_due_date < current_date
+            overdue_transactions = session.query(Transaction).filter(
+                Transaction.status == 'OPEN',
+                Transaction.book_due_date < current_date
             ).all()
             
             count = 0
@@ -877,7 +877,7 @@ def mark_overdue_transactions():
                     calculated_fine = weeks_overdue * fine_per_week
                     
                     # Business logic: Check founder/pastor exemptions
-                    customer = session.query(LibraryUser).filter_by(user_id=transaction.customer_id).first()
+                    customer = session.query(User).filter_by(user_id=transaction.customer_id).first()
                     if customer and (customer.is_founder or (customer.maturity_level and customer.maturity_level.title == "PASTOR")):
                         calculated_fine = 0.0  # Founder/Pastor exempt from fines
                     
