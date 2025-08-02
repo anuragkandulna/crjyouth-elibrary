@@ -47,9 +47,9 @@ class Transaction(Base):
 
     @staticmethod
     def generate_ticket_id(seed: Optional[int] = None) -> int:
-        if seed and 1000 <= seed <= 99999999:
+        if seed and 1000 <= seed <= 999999:
             return seed
-        return random.randint(10000000, 99999999)
+        return random.randint(100000, 999999)
 
 
     @classmethod
