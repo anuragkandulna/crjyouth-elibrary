@@ -15,8 +15,8 @@ from constants.config import LOG_LEVEL
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=AUTH_LOG_FILE).get_logger()
 
 
-class UserSession(Base):
-    __tablename__ = "user_sessions"
+class Session(Base):
+    __tablename__ = "sessions"
 
     session_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_uuid: Mapped[str] = mapped_column(ForeignKey("users.user_uuid"), nullable=False)
@@ -28,13 +28,13 @@ class UserSession(Base):
     last_refreshed: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    user = relationship("LibraryUser")
+    user = relationship("User")
 
 
     @staticmethod
     def create_session(session: Session, user_uuid: str, device_id: str,
                        user_agent: Optional[str] = None, ip_address: Optional[str] = None,
-                       ttl_minutes: int = 720) -> "UserSession":
+                       ttl_minutes: int = 720) -> "Session":
         """
         Creates a new session for the given user.
         """
@@ -47,7 +47,7 @@ class UserSession(Base):
                 raise ValueError("device_id too long (max 100 characters)")
 
             now = utc_now()
-            new_session = UserSession(
+            new_session = Session(
                 user_uuid=user_uuid,
                 device_id=device_id,
                 user_agent=user_agent,
@@ -68,16 +68,16 @@ class UserSession(Base):
 
 
     @staticmethod
-    def get_active_sessions(session: Session, user_uuid: str) -> List["UserSession"]:
+    def get_active_sessions(session: Session, user_uuid: str) -> List["Session"]:
         """
         Get all active sessions of the user.
         """
         try:
             now = utc_now()
-            stmt = select(UserSession).where(
-                UserSession.user_uuid == user_uuid,
-                UserSession.is_active.is_(True),
-                UserSession.expires_at > now
+            stmt = select(Session).where(
+                Session.user_uuid == user_uuid,
+                Session.is_active.is_(True),
+                Session.expires_at > now
             )
             active_sessions = list(session.scalars(stmt).all())
             LOGGER.debug(f"Retrieved {len(active_sessions)} active sessions for user '{user_uuid}'.")
@@ -89,12 +89,12 @@ class UserSession(Base):
 
 
     @staticmethod
-    def get_session_by_id(session: Session, session_id: str) -> Optional["UserSession"]:
+    def get_session_by_id(session: Session, session_id: str) -> Optional["Session"]:
         """
         Get a session by its ID.
         """
         try:
-            stmt = select(UserSession).where(UserSession.session_id == session_id)
+            stmt = select(Session).where(Session.session_id == session_id)
             return session.scalar(stmt)
         except Exception as ex:
             LOGGER.error(f"Failed to retrieve session '{session_id}': {ex}")
@@ -108,10 +108,10 @@ class UserSession(Base):
         """
         try:
             now = utc_now()
-            stmt = select(UserSession).where(
-                UserSession.session_id == session_id,
-                UserSession.is_active.is_(True),
-                UserSession.expires_at > now
+            stmt = select(Session).where(
+                Session.session_id == session_id,
+                Session.is_active.is_(True),
+                Session.expires_at > now
             )
             return session.scalar(stmt) is not None
         except Exception as ex:
@@ -125,9 +125,9 @@ class UserSession(Base):
         Update the last_refreshed timestamp and extend expiry.
         """
         try:
-            stmt = select(UserSession).where(
-                UserSession.session_id == session_id,
-                UserSession.is_active.is_(True)
+            stmt = select(Session).where(
+                Session.session_id == session_id,
+                Session.is_active.is_(True)
             )
             db_session = session.scalar(stmt)
 
@@ -160,9 +160,9 @@ class UserSession(Base):
         Mark a single session inactive (e.g., device logout).
         """
         try:
-            stmt = select(UserSession).where(
-                UserSession.session_id == session_id,
-                UserSession.is_active.is_(True)
+            stmt = select(Session).where(
+                Session.session_id == session_id,
+                Session.is_active.is_(True)
             )
             db_session = session.scalar(stmt)
 
@@ -188,8 +188,8 @@ class UserSession(Base):
         """
         try:
             stmt = (
-                update(UserSession)
-                .where(UserSession.user_uuid == user_uuid, UserSession.is_active.is_(True))
+                update(Session)
+                .where(Session.user_uuid == user_uuid, Session.is_active.is_(True))
                 .values(is_active=False)
             )
             result = session.execute(stmt)
@@ -204,15 +204,15 @@ class UserSession(Base):
 
 
     @staticmethod
-    def get_sessions_by_device(session: Session, user_uuid: str, device_id: str) -> List["UserSession"]:
+    def get_sessions_by_device(session: Session, user_uuid: str, device_id: str) -> List["Session"]:
         """
         Get all sessions for a specific user and device.
         """
         try:
-            stmt = select(UserSession).where(
-                UserSession.user_uuid == user_uuid,
-                UserSession.device_id == device_id
-            ).order_by(UserSession.created_at.desc())
+            stmt = select(Session).where(
+                Session.user_uuid == user_uuid,
+                Session.device_id == device_id
+            ).order_by(Session.created_at.desc())
             return list(session.scalars(stmt).all())
         except Exception as ex:
             LOGGER.error(f"Failed to retrieve sessions for user '{user_uuid}' on device '{device_id}': {ex}")
@@ -226,7 +226,7 @@ class UserSession(Base):
         """
         try:
             threshold = add_time(utc_now(), days=-days_threshold)
-            stmt = delete(UserSession).where(UserSession.expires_at < threshold)
+            stmt = delete(Session).where(Session.expires_at < threshold)
             result = session.execute(stmt)
             session.commit()
             LOGGER.info(f"Cleaned up {result.rowcount} expired sessions from database (older than {days_threshold} days).")
@@ -245,10 +245,10 @@ class UserSession(Base):
         """
         try:
             now = utc_now()
-            stmt = select(func.count(UserSession.session_id)).where(
-                UserSession.user_uuid == user_uuid,
-                UserSession.is_active.is_(True),
-                UserSession.expires_at > now
+            stmt = select(func.count(Session.session_id)).where(
+                Session.user_uuid == user_uuid,
+                Session.is_active.is_(True),
+                Session.expires_at > now
             )
             return session.scalar(stmt) or 0
         except Exception as ex:
@@ -273,4 +273,4 @@ class UserSession(Base):
 
 
     def __repr__(self):
-        return f"<UserSession(session_id='{self.session_id}', user_uuid='{self.user_uuid}', device='{self.device_id}', active={self.is_active})>"
+        return f"<Session(session_id='{self.session_id}', user_uuid='{self.user_uuid}', device='{self.device_id}', active={self.is_active})>"
