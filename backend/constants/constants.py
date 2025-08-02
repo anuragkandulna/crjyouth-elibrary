@@ -4,18 +4,6 @@ LIBRARY_ROLES = {
     3: 'MEMBER'
 }
 
-TOKEN_PRICES = {
-    'S1': 10.0,
-    'S2': 25.0,
-    'M1': 50.0,
-    'M2':  75.0,
-    'L1': 100.0,
-    'L2': 150.0
-}
-
-DEFAULT_EXTENSION_FEE = 10.0
-DEFAULT_DAMAGE_FEE = 100.0
-EXTENSION_DAYS = 7
 
 STATUS_CODE_CATEGORY = [
     "TRANSACTION",
@@ -24,8 +12,6 @@ STATUS_CODE_CATEGORY = [
 ]
 
 # Log files
-INFRA_LOG_FILE = 'crjyouth_infra.log'
-OPS_LOG_FILE = 'crjyouth_ops.log'
 APP_LOG_FILE = 'crjyouth_app.log'
 AUTH_LOG_FILE = 'crjyouth_auth.log'
 
