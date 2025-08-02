@@ -3,9 +3,7 @@ from flask_mail import Message
 import jwt
 import datetime
 from typing import Dict, Tuple
-from sqlalchemy import select
 from models.user import User
-from models.office import Office
 from models.exceptions import DuplicateUserError, WeakPasswordError
 from constants.config import JWT_SECRET_KEY, CRJYOUTH_MAIL_NO_REPLY, LOG_LEVEL
 from constants.constants import (
@@ -21,11 +19,10 @@ from utils.security import verify_strong_password
 from utils.mail_setup import mail
 from utils.route_utils import (
     generate_nonce, validate_nonce, validate_request_data,
-    token_required, rate_limit, nonce_store, get_device_info, session_required
+    rate_limit, nonce_store, get_device_info, session_required
 )
 from models.session import Session
-from routes.referral_routes import validate_referral_token
-
+from models.exceptions import DuplicateUserError, WeakPasswordError
 
 # Defined variables
 user_token_cache = {}
@@ -107,57 +104,27 @@ def check_password_strength():
 @rate_limit(max_requests=REGISTER_RATE_LIMIT_REQUESTS, window_minutes=REGISTER_RATE_LIMIT_WINDOW_MINUTES)
 def register():
     data = request.get_json()
-    
-    required_fields = ['first_name', 'last_name', 'phone_number', 'password', 
-                      'address_line_1', 'city', 'state', 'country', 'postal_code', 'referral_token']
+    required_fields = ['first_name', 'last_name', 'phone_number', 'password']
     is_valid, error_msg = validate_request_data(data, required_fields)
     if not is_valid:
         return jsonify({"error": error_msg}), 400
     
     try:
-        referral_token = data.get('referral_token')
-        if referral_token:
-            referral_data_dict, error_response, status_code = validate_referral_token(referral_token, data['phone_number'])
-            if error_response:
-                return error_response, status_code
-        else:
-            return jsonify({"error": "Referral token is required"}), 400
-
-        # Verify if library office exists
-        session = get_db_session()
-        stmt = select(Office).where(Office.office_code == referral_data_dict['assigned_office'])
-        office = session.execute(stmt).scalar_one_or_none()
-        if not office:
-            LOGGER.error(f"Office {referral_data_dict['assigned_office']} not found for user registration")
-            return jsonify({"error": "Office not found for user registration"}), 400
-        
-        # Create user
-        new_user = User.create_user(
-            session,
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            email=data.get('email'),
-            phone_number=data['phone_number'],
-            password=data['password'],
-            address_line_1=data['address_line_1'],
-            address_line_2=data.get('address_line_2'),
-            city=data['city'],
-            state=data['state'],
-            country=data['country'],
-            postal_code=data['postal_code'],
-            registered_at_office=referral_data_dict['assigned_office'],
-            membership_type=data.get('membership', 5)
-        )
-
-        LOGGER.info(f"User '{new_user.user_id}' registered successfully with referral code {referral_data_dict['referral_id']}")
-        return jsonify({
-            "message": f"User registered successfully. Your user ID is {new_user.user_id}",
-            "user_id": new_user.user_id,
-            "first_name": new_user.first_name,
-            "last_name": new_user.last_name,
-            "account_status": new_user.account_status
-        }), 201
-
+        with get_db_session() as session:
+            user = User.create_user(
+                session=session,
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                email=data.get('email'),
+                phone_number=data['phone_number'],
+                password=data['password']
+            )
+            LOGGER.info(f"User registered: {user.user_id}")
+            return jsonify({
+                "message": "User registered successfully",
+                "user_id": user.user_id,
+                "role": LIBRARY_ROLES[user.user_role]
+            }), 201
     except Exception as ex:
         error_response, status_code = handle_auth_error(ex, "User registration failed")
         return jsonify(error_response), status_code
@@ -213,7 +180,7 @@ def login():
                 device_id=device_id or 'unknown',
                 user_agent=user_agent,
                 ip_address=ip_address,
-                ttl_minutes=TOKEN_EXPIRY_HOURS * 60  # Convert hours to minutes
+                ttl_minutes=TOKEN_EXPIRY_HOURS * 60
             )
             
             response = make_response(jsonify({
@@ -489,60 +456,13 @@ def logout_all():
             user = session.query(User).filter_by(user_id=user_id).first()
             if not user:
                 return jsonify({"error": "User not found"}), 404
-            
-            # Deactivate all sessions
-            deactivated_count = Session.deactivate_all_sessions(session, user.user_uuid)
-            
-        # Clear session cookie
-        response = make_response(jsonify({
-            "message": f"Logged out from all sessions successfully",
-            "sessions_deactivated": deactivated_count
-        }))
+            count = Session.deactivate_all_sessions(session, user.user_uuid)
+        response = make_response(jsonify({"message": "Logged out from all sessions"}))
         response.set_cookie('session_token', '', expires=0)
         
-        LOGGER.info(f"User '{user_id}' logged out from all sessions. {deactivated_count} sessions deactivated.")
+        LOGGER.info(f"User '{user_id}' logged out from all sessions.")
         return response
         
     except Exception as ex:
         error_response, status_code = handle_auth_error(ex, "Logout all failed")
-        return jsonify(error_response), status_code
-
-
-@auth_bp.route('/api/v1/sessions', methods=['GET'])
-@session_required
-@rate_limit(max_requests=10, window_minutes=5)
-def get_user_sessions():
-    """Get all active sessions for current user."""
-    try:
-        user_id = g.current_user['user_id']
-        
-        with get_db_session() as session:
-            # Get user to find user_uuid
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if not user:
-                return jsonify({"error": "User not found"}), 404
-            
-            # Get active sessions
-            active_sessions = Session.get_active_sessions(session, user.user_uuid)
-            
-            sessions_data = []
-            for user_session in active_sessions:
-                sessions_data.append({
-                    "session_id": user_session.session_id,
-                    "device_id": user_session.device_id,
-                    "user_agent": user_session.user_agent,
-                    "ip_address": user_session.ip_address,
-                    "created_at": user_session.created_at.isoformat(),
-                    "expires_at": user_session.expires_at.isoformat(),
-                    "last_refreshed": user_session.last_refreshed.isoformat() if user_session.last_refreshed else None,
-                    "is_current": user_session.session_id == g.session_id
-                })
-            
-            return jsonify({
-                "sessions": sessions_data,
-                "count": len(sessions_data)
-            }), 200
-            
-    except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Sessions retrieval failed")
         return jsonify(error_response), status_code
