@@ -15,7 +15,7 @@ class Author(Base):
     __tablename__ = "authors"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
+    code: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
     books = relationship("Book", back_populates="author")
@@ -26,7 +26,7 @@ class Author(Base):
 
 
     @classmethod
-    def create_author(cls, session: Session, code: str, name: str) -> "Author":
+    def create_author(cls, session: Session, code: int, name: str) -> "Author":
         """
         Create a new author into database.
         """
@@ -45,7 +45,7 @@ class Author(Base):
 
 
     @staticmethod
-    def delete_author(session: Session, code: str) -> None:
+    def delete_author(session: Session, code: int) -> None:
         """
         Delete an author permanently.
         """
