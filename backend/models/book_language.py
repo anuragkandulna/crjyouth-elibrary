@@ -10,21 +10,20 @@ from models.exceptions import BookLanguageNotFoundError
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
 
 
-class BookLanguage(Base):
-    __tablename__ = "book_languages"
+class Language(Base):
+    __tablename__ = "languages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     language: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-    description: Mapped[str] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     books = relationship("Book", back_populates="book_language")
 
 
     @classmethod
-    def create_language(cls, session: Session, language: str, description: str) -> "BookLanguage":
+    def create_language(cls, session: Session, language: str) -> "Language":
         """
-        Create a new book language. If it exists but is inactive, reactivate it.
+        Create a new language. If it exists but is inactive, reactivate it.
         """
         stmt = select(cls).where(cls.language == language)
         existing = session.execute(stmt).scalar_one_or_none()
@@ -32,11 +31,10 @@ class BookLanguage(Base):
         if existing:
             if not existing.is_active:
                 existing.is_active = True
-                existing.description = description
                 session.commit()
             return existing
 
-        new_language = cls(language=language, description=description)
+        new_language = cls(language=language)
         session.add(new_language)
         session.commit()
         LOGGER.info(f"Language {new_language} created successfully.")
@@ -46,7 +44,7 @@ class BookLanguage(Base):
     @classmethod
     def delete_language(cls, session: Session, language: str) -> None:
         """
-        Soft delete a book language by setting is_active to False.
+        Soft delete a language by setting is_active to False.
         """
         stmt = select(cls).where(cls.language == language, cls.is_active.is_(True))
         existing = session.execute(stmt).scalar_one_or_none()
@@ -61,4 +59,4 @@ class BookLanguage(Base):
 
 
     def __repr__(self) -> str:
-        return f"<BookLanguage(language='{self.language}', active={self.is_active})>"
+        return f"<Language(language='{self.language}', active={self.is_active})>"
