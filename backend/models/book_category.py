@@ -10,19 +10,19 @@ from models.exceptions import BookCategoryNotFoundError
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=OPS_LOG_FILE).get_logger()
 
 
-class BookCategory(Base):
-    __tablename__ = "book_categories"
+class Genre(Base):
+    __tablename__ = "genres"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    description: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    books = relationship("Book", back_populates="categories")
+    books = relationship("Book", back_populates="genres")
 
 
     @classmethod
-    def create_category(cls, session: Session, name: str, description: str) -> "BookCategory":
+    def create_genre(cls, session: Session, name: str, description: str) -> "Genre":
         """
         Create a new book category. If it exists but is inactive, reactivate it.
         """
@@ -39,12 +39,12 @@ class BookCategory(Base):
         new_category = cls(name=name, description=description)
         session.add(new_category)
         session.commit()
-        LOGGER.info(f"Book category {new_category} created successfully.")
+        LOGGER.info(f"Genre {new_category} created successfully.")
         return new_category
 
 
     @classmethod
-    def delete_category(cls, session: Session, name: str) -> None:
+    def delete_genre(cls, session: Session, name: str) -> None:
         """
         Soft delete a book category by setting is_active to False.
         """
@@ -52,13 +52,13 @@ class BookCategory(Base):
         category = session.execute(stmt).scalar_one_or_none()
 
         if not category:
-            LOGGER.error(f"Book category '{name}' not found.")
-            raise BookCategoryNotFoundError(f"Book category '{name}' not found.")
+            LOGGER.error(f"Genre '{name}' not found.")
+            raise BookCategoryNotFoundError(f"Genre '{name}' not found.")
 
         category.is_active = False
         session.commit()
-        LOGGER.info(f"Book category '{name}' deleted successfully.")
+        LOGGER.info(f"Genre '{name}' deleted successfully.")
 
 
     def __repr__(self) -> str:
-        return f"<BookCategory(name='{self.name}', active={self.is_active})>"
+        return f"<Genre(name='{self.name}', active={self.is_active})>"
