@@ -7,7 +7,7 @@ from typing import Optional
 from constants.constants import OPS_LOG_FILE
 from models.base import Base
 from utils.timezone_utils import utc_now
-from models.library_user import LibraryUser
+from models.user import User
 from utils.my_logger import CustomLogger
 from constants.config import LOG_LEVEL
 from models.exceptions import (
@@ -36,8 +36,8 @@ class Transaction(Base):
     book_return_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     fine_incurred: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-    customer = relationship("LibraryUser", foreign_keys=[customer_id], backref="transactions_as_customer")
-    librarian = relationship("LibraryUser", foreign_keys=[librarian_id], backref="transactions_as_librarian")
+    customer = relationship("User", foreign_keys=[customer_id], backref="transactions_as_customer")
+    librarian = relationship("User", foreign_keys=[librarian_id], backref="transactions_as_librarian")
     book_copy = relationship("BookCopy", foreign_keys=[copy_id], backref="transactions")
 
 
@@ -53,7 +53,7 @@ class Transaction(Base):
 
 
     @classmethod
-    def create_transaction(cls, session: Session, customer: LibraryUser, copy_id: str,
+    def create_transaction(cls, session: Session, customer: User, copy_id: str,
                            particulars: str, ticket_seed: Optional[int] = None) -> "Transaction":
         try:
             if not customer or not customer.user_id:
