@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, select
+from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, select, SmallInteger
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, Session
 from datetime import datetime
@@ -10,7 +10,7 @@ from models.base import Base
 from utils.security import generate_password_hash, check_password_hash, verify_strong_password
 from utils.timezone_utils import utc_now
 from utils.my_logger import CustomLogger
-from constants.constants import OPS_LOG_FILE
+from constants.constants import OPS_LOG_FILE, LIBRARY_ROLES
 from constants.config import LOG_LEVEL
 from models.exceptions import (
     DuplicateUserError, UserNotFoundError, WeakPasswordError, DuplicateUserIdError
@@ -31,6 +31,7 @@ class User(Base):
     registration_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=utc_now, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     account_status: Mapped[str] = mapped_column(ForeignKey('status_codes.code'), default='UNVERIFIED', nullable=False)
+    user_role: Mapped[int] = mapped_column(SmallInteger, default=3, nullable=False)
 
 
     def __repr__(self) -> str:
@@ -39,6 +40,18 @@ class User(Base):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+
+    def is_admin(self) -> bool:
+        return self.user_role == 1
+
+
+    def is_moderator(self) -> bool: 
+        return self.user_role in (1, 2)
+
+
+    def is_member(self) -> bool:
+        return self.user_role in (1, 2, 3)
 
 
     @staticmethod
@@ -109,7 +122,8 @@ class User(Base):
             "Name": f"{user.first_name} {user.last_name}",
             "Email": user.email,
             "Phone": user.phone_number,
-            "Status": user.account_status
+            "Status": user.account_status,
+            "Role": LIBRARY_ROLES[user.user_role]
         }
 
 
