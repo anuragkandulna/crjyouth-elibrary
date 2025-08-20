@@ -1,0 +1,14 @@
+[
+    {
+        "name": "Fantasy",
+        "description": "Fantasy literature and fiction"
+    },
+    {
+        "name": "Philosophy",
+        "description": "Philosophical and theological works"
+    },
+    {
+        "name": "Classic",
+        "description": "Classic literature and timeless works"
+    }
+]
