@@ -1,5 +1,4 @@
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, select, update, delete, func
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -23,9 +22,9 @@ class Session(Base):
     device_id: Mapped[str] = mapped_column(String(100), nullable=False)
     user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=utc_now)
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    last_refreshed: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_refreshed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     user = relationship("User")
@@ -46,7 +45,7 @@ class Session(Base):
             if len(device_id) > 100:
                 raise ValueError("device_id too long (max 100 characters)")
 
-            now = utc_now()
+            now = utc_datetime()
             new_session = Session(
                 user_uuid=user_uuid,
                 device_id=device_id,
