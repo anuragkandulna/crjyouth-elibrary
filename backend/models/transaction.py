@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, DateTime, Float, ForeignKey, func, Text, select
+from sqlalchemy import String, Integer, DateTime, Float, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from datetime import datetime
 from uuid import uuid4
@@ -30,10 +30,10 @@ class Transaction(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     particulars: Mapped[str] = mapped_column(String(255), nullable=False)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    ticket_updated_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    book_borrow_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    book_due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    book_return_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ticket_updated_date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    book_borrow_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    book_due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    book_return_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     fine_incurred: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     customer = relationship("User", foreign_keys=[customer_id], backref="transactions_as_customer")
