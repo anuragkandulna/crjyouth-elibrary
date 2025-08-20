@@ -7,7 +7,6 @@ from flask_cors import CORS
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from utils.mail_setup import mail
-from utils.timezone_verification import startup_timezone_check
 from routes.auth_routes import auth_bp
 from routes.profile_routes import profile_bp
 from routes.transaction_routes import transaction_bp
@@ -61,19 +60,34 @@ argon2.init_app(app)
 # Logger and CORS Setup
 # -------------------------------
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, 
+     resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     expose_headers=["Set-Cookie"])
 
 # -------------------------------
 # Security Checks
 # -------------------------------
-# Verify timezone configuration on startup
+# Verify database connection on startup
 try:
-    from utils.sqlite_database import get_db_session
+    from utils.sqlite_database import get_db_session, get_database_connection
+    from sqlalchemy import text
+    
+    # Get database connection (this initializes the pool)
+    db_connection = get_database_connection()
+    
+    # Verify database connection on startup
     with get_db_session() as session:
-        startup_timezone_check(session)
-    LOGGER.info("Security: Timezone configuration verified")
+        # Simple connection test
+        session.execute(text("SELECT 1"))
+    
+    # Log pool statistics
+    pool_stats = db_connection.get_pool_stats()
+    LOGGER.info(f"Database connection pool verified. Pool stats: {pool_stats}")
 except Exception as ex:
-    LOGGER.critical(f"Security: Timezone verification failed - {ex}")
+    LOGGER.critical(f"Database connection failed - {ex}")
     raise RuntimeError(f"Application startup failed: {ex}")
 
 # -------------------------------
@@ -87,4 +101,4 @@ app.register_blueprint(transaction_bp)
 # Start Application
 # -------------------------------
 if __name__ == '__main__':
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5001, debug=True)

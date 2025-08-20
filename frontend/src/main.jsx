@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {
     Route,
@@ -12,11 +11,15 @@ import Home from "./components/Home/Home.jsx";
 import Registration from "./components/Registration/Registration.jsx";
 import Login from "./components/Login/Login.jsx";
 import BookCatalogue from "./components/BookCatalogue/BookCatalogue.jsx";
-import AudioBooks from "./components/AudioBooks/AudioBooks.jsx";
-import BookDetails from "./components/BookDetails/BookDetails.jsx";
+import About from "./components/About/About.jsx";
+import LibraryCard from "./components/LibraryCard/LibraryCard.jsx";
 import { Provider } from "react-redux";
 import { store } from "./app/store.js";
 import Error404 from "./components/Error404/Error404.jsx";
+import Rules from "./components/Rules/Rules.jsx";
+import FAQ from "./components/FAQ/FAQ.jsx";
+import PrivacyPolicy from "./components/PrivacyPolicy/PrivacyPolicy.jsx";
+import Credits from "./components/Credits/Credits.jsx";
 
 // All the public routes down here:
 const router = createBrowserRouter(
@@ -26,19 +29,19 @@ const router = createBrowserRouter(
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Registration />} />
             <Route path="books" element={<BookCatalogue />} />
-            <Route path="audiobooks" element={<AudioBooks />} />
-            <Route path="bookdetails" element={<BookDetails />} />
-
+            <Route path="about" element={<About />} />
+            <Route path="library-card" element={<LibraryCard />} />
+            <Route path="rules" element={<Rules />} />
+            <Route path="faq" element={<FAQ />} />
+            <Route path="privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="credits" element={<Credits />} />
             <Route path="*" element={<Error404 />} />
         </Route>
     )
 );
 
 createRoot(document.getElementById("root")).render(
-    <StrictMode>
-        <Provider store={store}>
-            <RouterProvider router={router} />
-        </Provider>
-        {/* <RouterProvider router={router} /> */}
-    </StrictMode>
+    <Provider store={store}>
+        <RouterProvider router={router} />
+    </Provider>
 );

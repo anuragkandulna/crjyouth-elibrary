@@ -13,13 +13,16 @@ LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logg
 
 
 # SQL-based seeding functions
-def seed_authors_sql(session: Session, authors_data: dict) -> None:
+def seed_authors_sql(session: Session, authors_data: list) -> None:
     """
     SQL-based seeding for authors table.
     """
     inserted_count = 0
     
-    for author_code, author_name in authors_data.items():
+    for author in authors_data:
+        author_code = author["code"]
+        author_name = author["name"]
+        
         # Check if author exists by code or name
         check_sql = text("SELECT 1 FROM authors WHERE code = :code OR name = :name")
         existing = session.execute(check_sql, {"code": author_code, "name": author_name}).scalar()
@@ -51,8 +54,17 @@ def seed_books_sql(session: Session, books_data: list) -> None:
     """
     inserted_count = 0
     
-    for book_tuple in books_data:
-        isbn, title, author_code, publisher_code, category, language, first_publication_year, price, description, contents = book_tuple
+    for book in books_data:
+        isbn = book["isbn"]
+        title = book["title"]
+        author_code = book["author_code"]
+        publisher_code = book["publisher_code"]
+        category = book["category"]
+        language = book["language"]
+        first_publication_year = book["first_publication_year"]
+        price = book["price"]
+        description = book["description"]
+        contents = book["contents"]
         isbn_str = str(isbn)
         
         # Check if book exists
@@ -111,14 +123,12 @@ def seed_book_copies_sql(session: Session, copies_data: list) -> None:
     """
     inserted_count = 0
     
-    for copy_tuple in copies_data:
-        book_id, branch_code, current_publication_year = copy_tuple
+    for copy in copies_data:
+        book_id = copy["book_id"]
+        branch_code = copy["branch_code"]
+        copy_number = copy["copy_number"]
         
         try:
-            # Get next copy number
-            copy_num_sql = text("SELECT COALESCE(MAX(copy_number), 0) + 1 FROM book_copies WHERE book_id = :book_id")
-            copy_number = session.execute(copy_num_sql, {"book_id": book_id}).scalar()
-            
             # Generate copy_id and copy_uuid
             import uuid
             copy_uuid = str(uuid.uuid4())
@@ -129,6 +139,13 @@ def seed_book_copies_sql(session: Session, copies_data: list) -> None:
             book_exists = session.execute(book_check_sql, {"book_id": book_id}).scalar()
             if not book_exists:
                 LOGGER.warning(f"ℹ️ Book '{book_id}' not found, skipping copy creation.")
+                continue
+            
+            # Check if copy already exists
+            copy_check_sql = text("SELECT 1 FROM book_copies WHERE copy_id = :copy_id")
+            copy_exists = session.execute(copy_check_sql, {"copy_id": copy_id}).scalar()
+            if copy_exists:
+                LOGGER.info(f"ℹ️ Copy '{copy_id}' already exists, skipping.")
                 continue
             
             # Insert new copy
@@ -150,7 +167,7 @@ def seed_book_copies_sql(session: Session, copies_data: list) -> None:
             })
             inserted_count += 1
         except Exception as e:
-            LOGGER.warning(f"ℹ️ Book copy '{book_id}-{branch_code}' creation failed: {e}")
+            LOGGER.warning(f"ℹ️ Book copy '{copy_id}' creation failed: {e}")
             continue
     
     if inserted_count > 0:
@@ -201,7 +218,7 @@ def seed_languages_sql(session: Session, languages_data: list) -> None:
     inserted_count = 0
     
     for item in languages_data:
-        language_name = item if isinstance(item, str) else item.get("language", item.get("name", ""))
+        language_name = item["name"]
         
         # Check if language exists
         check_sql = text("SELECT 1 FROM languages WHERE language = :language")
@@ -228,20 +245,20 @@ def seed_languages_sql(session: Session, languages_data: list) -> None:
         LOGGER.info("✅ No new languages inserted via SQL. All languages already exist.")
 
 
-def seed_offices_sql(session: Session, offices_data: dict) -> None:
+def seed_offices_sql(session: Session, offices_data: list) -> None:
     """
     SQL-based seeding for offices table.
     """
     inserted_count = 0
     
-    for office_code, office_data in offices_data.items():
-        office_code = int(office_code)
+    for office in offices_data:
+        office_code = int(office["code"])
         
         # Check if office exists
         check_sql = text("SELECT 1 FROM offices WHERE code = :code")
         existing = session.execute(check_sql, {"code": office_code}).scalar()
         if existing:
-            LOGGER.info(f"ℹ️ Office '{office_code}' already exists in '{office_data['city']}', skipping.")
+            LOGGER.info(f"ℹ️ Office '{office_code}' already exists in '{office['city']}', skipping.")
             continue
         
         # Insert new office
@@ -251,10 +268,10 @@ def seed_offices_sql(session: Session, offices_data: dict) -> None:
         """)
         session.execute(insert_sql, {
             "code": office_code,
-            "name": office_data['name'],
-            "address": office_data['address'],
-            "city": office_data['city'],
-            "pincode": office_data['pincode'],
+            "name": office['name'],
+            "address": office['address'],
+            "city": office['city'],
+            "pincode": office['pincode'],
             "is_active": True
         })
         inserted_count += 1

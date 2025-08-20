@@ -1,11 +1,9 @@
 from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, select
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, Session
 from datetime import datetime
 from typing import Optional
 import random
 import uuid
-
 from models.base import Base
 from utils.security import generate_password_hash, check_password_hash, verify_strong_password
 from utils.timezone_utils import utc_now
@@ -27,7 +25,7 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(30), nullable=False)
     last_name: Mapped[str] = mapped_column(String(30), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
-    registration_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=utc_now, nullable=False)
+    registration_date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -3,6 +3,7 @@ from flask import request, jsonify, g
 import jwt
 import datetime
 import secrets
+import time
 from typing import Optional, Dict, Any, Tuple
 from constants.config import JWT_SECRET_KEY
 from constants.constants import (
@@ -15,6 +16,7 @@ from utils.sqlite_database import get_db_session
 # Global storage for rate limiting and nonce
 nonce_store: Dict[str, bool] = {}
 request_counts: Dict[str, list] = {}  # Simple rate limiting storage
+nonce_cleanup_time = time.time()  # Track last cleanup time
 
 
 # -------------------- Utility Functions -------------------- #
@@ -65,14 +67,22 @@ def extract_token_from_header(auth_header: Optional[str]) -> Optional[str]:
 
 
 def check_rate_limit(endpoint: str, max_requests: int = DEFAULT_RATE_LIMIT_REQUESTS, window_minutes: int = DEFAULT_RATE_LIMIT_WINDOW_MINUTES) -> bool:
-    """Simple rate limiting check."""
+    """Simple rate limiting check with cleanup."""
+    global nonce_cleanup_time
+    
     now = datetime.datetime.now()
+    current_time = time.time()
     key = f"{request.remote_addr}:{endpoint}"
+    
+    # Cleanup old data periodically (every 5 minutes)
+    if current_time - nonce_cleanup_time > 300:  # 5 minutes
+        cleanup_old_data(window_minutes)
+        nonce_cleanup_time = current_time
     
     if key not in request_counts:
         request_counts[key] = []
     
-    # Clean old requests
+    # Clean old requests for this specific key
     request_counts[key] = [req_time for req_time in request_counts[key] 
                           if now - req_time < datetime.timedelta(minutes=window_minutes)]
     
@@ -81,6 +91,41 @@ def check_rate_limit(endpoint: str, max_requests: int = DEFAULT_RATE_LIMIT_REQUE
     
     request_counts[key].append(now)
     return True
+
+
+def cleanup_old_data(window_minutes: int):
+    """Clean up old rate limiting and nonce data to prevent memory leaks."""
+    now = datetime.datetime.now()
+    cutoff_time = now - datetime.timedelta(minutes=window_minutes)
+    
+    # Clean up old rate limiting data
+    keys_to_remove = []
+    for key, requests in request_counts.items():
+        # Remove empty request lists
+        if not requests:
+            keys_to_remove.append(key)
+            continue
+        
+        # Remove old requests
+        request_counts[key] = [req_time for req_time in requests 
+                              if req_time > cutoff_time]
+        
+        # Remove keys with no remaining requests
+        if not request_counts[key]:
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del request_counts[key]
+    
+    # Clean up old nonces (older than 10 minutes)
+    nonce_cutoff = now - datetime.timedelta(minutes=10)
+    nonces_to_remove = []
+    for nonce, timestamp in nonce_store.items():
+        if isinstance(timestamp, datetime.datetime) and timestamp < nonce_cutoff:
+            nonces_to_remove.append(nonce)
+    
+    for nonce in nonces_to_remove:
+        del nonce_store[nonce]
 
 
 def validate_status_transition(current_status: str, target_status: str) -> bool:
@@ -203,6 +248,71 @@ def session_required(f):
         
         g.current_user = decoded_data
         g.session_id = session_id
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def session_only_required(f):
+    """Decorator to require valid session only (no JWT required)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        # Get session from request
+        session_id = get_session_from_request()
+        
+        if not session_id:
+            return jsonify({
+                "error": "Session not found. Please login again.",
+                "requires_login": True
+            }), 401
+        
+        # Validate session
+        is_valid, session_error = validate_session(session_id)
+        
+        if not is_valid:
+            return jsonify({
+                "error": session_error or "Session expired. Please login again.",
+                "requires_login": True
+            }), 401
+        
+        # Get user information from session
+        try:
+            with get_db_session() as session:
+                session_obj = Session.get_session_by_id(session, session_id)
+                if not session_obj:
+                    return jsonify({
+                        "error": "Invalid session. Please login again.",
+                        "requires_login": True
+                    }), 401
+                
+                # Get user information from database
+                from models.user import User
+                user = session.query(User).filter_by(user_uuid=session_obj.user_uuid).first()
+                if not user:
+                    return jsonify({
+                        "error": "User not found. Please login again.",
+                        "requires_login": True
+                    }), 401
+                
+                # Store user information in Flask g
+                g.current_user = {
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_admin": user.is_admin,
+                    "user_uuid": user.user_uuid
+                }
+                g.session_id = session_id
+                
+                # Refresh session on successful validation
+                refresh_user_session(session_id)
+                
+        except Exception as ex:
+            return jsonify({
+                "error": "Session validation failed. Please login again.",
+                "requires_login": True
+            }), 401
+        
         return f(*args, **kwargs)
     return wrapper
 

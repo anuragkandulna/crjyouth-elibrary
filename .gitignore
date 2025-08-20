@@ -205,3 +205,6 @@ frontend/node_modules/
 
 # Ignore test_reports
 test_reports_*
+
+# Ignore local db files
+backend/data/crjyouthdb.db*
