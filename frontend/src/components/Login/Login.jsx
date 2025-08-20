@@ -24,18 +24,21 @@ export default function Login() {
             const { nonce } = nonceResponse.data;
 
             // Hash the password with the nonce
-            const hashedPassword = sha256(localpassword + nonce).toString();
+            // const hashedPassword = sha256(localpassword + nonce).toString();
 
-            const response = await axios.post("http://127.0.0.1:5000/login", {
-                email: localEmail,
-                password: hashedPassword,
-                nonce: nonce,
-            });
+            const response = await axios.post(
+                "http://127.0.0.1:5000/api/v1/login",
+                {
+                    email: localEmail,
+                    password: localpassword,
+                    nonce: nonce,
+                }
+            );
 
             const data = response.data;
 
             if (response.status === 200) {
-                navigate("/bookdetails");
+                alert("Login Successful!!!");
             } else {
                 console.error("Login failed: ", data);
                 alert("Login Failed!!!");
