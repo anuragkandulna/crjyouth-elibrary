@@ -61,7 +61,11 @@ argon2.init_app(app)
 # Logger and CORS Setup
 # -------------------------------
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, 
+     resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 # -------------------------------
 # Security Checks
