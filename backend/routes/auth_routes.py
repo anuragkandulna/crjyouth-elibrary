@@ -132,18 +132,14 @@ def register():
 def login():
     data = request.get_json()
     
-    is_valid, error_msg = validate_request_data(data, ['password'])
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    if not data.get('email'):
+    if not data.get('email') or not data.get('password'):
         return jsonify({
-            "error": "Email is required"
+            "error": "Email and password are required"
         }), 400
-    
+
     try:
         if not validate_nonce(data.get('nonce', '')):
-            return jsonify({"error": "Invalid or expired nonce"}), 401
+            return jsonify({"error": "Invalid or expired nonce"}), 400
 
         with get_db_session() as session:
             user = None
@@ -155,15 +151,31 @@ def login():
 
             if not user or not user.check_password(data['password']):
                 return jsonify({
-                    "error": "Invalid credentials"
+                    "error": "Either email or password is incorrect"
                 }), 401
 
-            # Generate JWT token
-            token = user_token_cache.get(user.email) or generate_login_token(user)
-            
             # Get device information
             device_id, user_agent = get_device_info()
             ip_address = request.remote_addr
+
+            # Verify if active session exists for the user
+            active_sessions = Session.get_active_sessions(session, user.user_uuid)
+
+            for active_session in active_sessions:
+                if active_session.device_id == device_id and active_session.user_agent == user_agent:
+                    return jsonify({
+                        "error": "User already logged in"
+                    }), 400
+
+            if active_sessions:
+                # Invalidate all other sessions except current one for security
+                for user_session in active_sessions:
+                    if user_session.session_id != user_session.session_id:
+                        Session.invalidate_session(session, user_session.session_id)
+                
+                return jsonify({
+                    "error": "User already logged in"
+                }), 400
             
             # Create user session
             user_session = Session.create_session(
@@ -176,10 +188,7 @@ def login():
             )
             
             response = make_response(jsonify({
-                "message": "Login successful",
-                "user_id": user.user_id,
-                "role": "ADMIN" if user.is_admin else "USER",
-                "session_expires_at": user_session.expires_at.isoformat()
+                "message": "Login successful"
             }))
             
             # Set session cookie instead of JWT token
@@ -193,7 +202,7 @@ def login():
             )
             
             LOGGER.info(f"User '{user.user_id}' logged in successfully with session '{user_session.session_id}'.")
-            return response
+            return response, 200
 
     except Exception as ex:
         error_response, status_code = handle_auth_error(ex, "Login failed", 500)
