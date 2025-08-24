@@ -189,7 +189,13 @@ def login():
                 LOGGER.info(f"User '{user.user_id}' created new session on device '{device_id}'.")
             
             response = make_response(jsonify({
-                "message": "Login successful"
+                "message": "Login successful",
+                "user": {
+                    "user_id": user.user_id,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_admin": user.is_admin
+                }
             }))
             
             # Set session cookie instead of JWT token
