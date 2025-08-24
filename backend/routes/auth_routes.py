@@ -158,34 +158,35 @@ def login():
             device_id, user_agent = get_device_info()
             ip_address = request.remote_addr
 
-            # Verify if active session exists for the user
+            # Check for existing active sessions for the user
             active_sessions = Session.get_active_sessions(session, user.user_uuid)
+            user_session = None
 
+            # Check if user is already logged in on the same device
             for active_session in active_sessions:
                 if active_session.device_id == device_id and active_session.user_agent == user_agent:
-                    return jsonify({
-                        "error": "User already logged in"
-                    }), 400
-
-            if active_sessions:
-                # Invalidate all other sessions except current one for security
-                for user_session in active_sessions:
-                    if user_session.session_id != user_session.session_id:
-                        Session.invalidate_session(session, user_session.session_id)
-                
-                return jsonify({
-                    "error": "User already logged in"
-                }), 400
+                    # Refresh existing session for same device
+                    if Session.refresh_session(session, active_session.session_id, TOKEN_EXPIRY_HOURS * 60):
+                        user_session = Session.get_session_by_id(session, active_session.session_id)
+                        LOGGER.info(f"User '{user.user_id}' session refreshed on existing device '{device_id}'.")
+                    break
             
-            # Create user session
-            user_session = Session.create_session(
-                session=session,
-                user_uuid=user.user_uuid, 
-                device_id=device_id or 'unknown',
-                user_agent=user_agent,
-                ip_address=ip_address,
-                ttl_minutes=TOKEN_EXPIRY_HOURS * 60
-            )
+            # If no existing session on same device, create new session
+            if not user_session:
+                # Invalidate all other sessions for security (single device login)
+                for existing_session in active_sessions:
+                    Session.invalidate_session(session, existing_session.session_id)
+                
+                # Create new user session
+                user_session = Session.create_session(
+                    session=session,
+                    user_uuid=user.user_uuid, 
+                    device_id=device_id or 'unknown',
+                    user_agent=user_agent,
+                    ip_address=ip_address,
+                    ttl_minutes=TOKEN_EXPIRY_HOURS * 60
+                )
+                LOGGER.info(f"User '{user.user_id}' created new session on device '{device_id}'.")
             
             response = make_response(jsonify({
                 "message": "Login successful"
