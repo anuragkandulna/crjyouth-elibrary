@@ -1,30 +1,32 @@
 import { useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import axios from "axios";
-import sha256 from "crypto-js";
+import { loginUser } from "../../features/user/userSlice";
 
 export default function Login() {
     const [localEmail, setLocalEmail] = useState("");
     const [localpassword, setLocalPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
     const handleLogin = async (e) => {
         e.preventDefault();
 
+        if (!localEmail || !localpassword) {
+            alert("Please enter both email and password");
+            return;
+        }
+
+        setIsLoading(true);
+
         try {
             // Fetch a unique nonce from the server
-            // const nonceResponse = await fetch(
-            //     "http://127.0.0.1:5000/api/v1/nonce"
-            // );
-            // const { nonce } = await nonceResponse.json();
-
             const nonceResponse = await axios.get(
                 "http://127.0.0.1:5000/api/v1/nonce"
             );
             const { nonce } = nonceResponse.data;
-
-            // Hash the password with the nonce
-            // const hashedPassword = sha256(localpassword + nonce).toString();
 
             const response = await axios.post(
                 "http://127.0.0.1:5000/api/v1/login",
@@ -32,20 +34,62 @@ export default function Login() {
                     email: localEmail,
                     password: localpassword,
                     nonce: nonce,
+                },
+                {
+                    withCredentials: true, // Important: This allows cookies to be sent/received
                 }
             );
 
             const data = response.data;
+            console.log("Login Response: ", response);
 
             if (response.status === 200) {
-                alert("Login Successful!!!");
+                console.log("Login Successful!!!", data);
+
+                // Validate user data exists
+                if (data.user) {
+                    // Store user data in Redux state
+                    dispatch(
+                        loginUser({
+                            email: data.user.email,
+                            firstname: data.user.first_name,
+                            lastname: data.user.last_name,
+                            token: "session-cookie", // Session is stored in HTTP-only cookie
+                        })
+                    );
+
+                    // Redirect to books page
+                    navigate("/books");
+                } else {
+                    alert(
+                        "Login successful but user data is missing. Please try again."
+                    );
+                }
             } else {
                 console.error("Login failed: ", data);
-                alert("Login Failed!!!");
+                alert(data.error || "Login failed. Please try again.");
             }
         } catch (error) {
             console.error("Login failed: ", error);
-            alert("Login Failed!!!");
+
+            // Handle different types of errors
+            if (error.response) {
+                // Server responded with error status
+                const errorMessage =
+                    error.response.data?.error ||
+                    "Login failed. Please check your credentials.";
+                alert(errorMessage);
+            } else if (error.request) {
+                // Network error
+                alert(
+                    "Network error. Please check your connection and try again."
+                );
+            } else {
+                // Other error
+                alert("An unexpected error occurred. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -194,9 +238,12 @@ export default function Login() {
                                     <div>
                                         <button
                                             type="submit"
-                                            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                            disabled={isLoading}
+                                            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:bg-indigo-400 disabled:cursor-not-allowed"
                                         >
-                                            Sign in
+                                            {isLoading
+                                                ? "Signing in..."
+                                                : "Sign in"}
                                         </button>
                                     </div>
                                 </form>
