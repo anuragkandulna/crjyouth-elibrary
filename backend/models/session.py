@@ -133,8 +133,11 @@ class Session(Base):
             if db_session:
                 now = utc_now()
                 
+                # Ensure expires_at is timezone-aware for comparison
+                expires_at = utc_datetime(db_session.expires_at)
+                
                 # Check if session hasn't expired
-                if db_session.expires_at <= now:
+                if expires_at <= now:
                     LOGGER.warning(f"Attempted to refresh expired session '{session_id}'.")
                     return False
                 
@@ -259,7 +262,7 @@ class Session(Base):
         """
         Check if this session has expired.
         """
-        return self.expires_at <= utc_now()
+        return utc_datetime(self.expires_at) <= utc_now()
 
 
     def time_until_expiry(self) -> Optional[timedelta]:
@@ -268,7 +271,7 @@ class Session(Base):
         """
         if self.is_expired():
             return None
-        return self.expires_at - utc_now()
+        return utc_datetime(self.expires_at) - utc_now()
 
 
     def __repr__(self):
