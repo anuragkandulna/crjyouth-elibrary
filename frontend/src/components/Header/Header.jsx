@@ -1,18 +1,74 @@
-import { useState } from "react";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect, useRef } from "react";
+import {
+    Bars3Icon,
+    XMarkIcon,
+    UserIcon,
+    ChevronDownIcon,
+} from "@heroicons/react/24/outline";
 import { Dialog, DialogPanel } from "@headlessui/react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { logoutUser } from "../../features/user/userSlice";
+
+// # 1. Admin Dashboard -> Private route only for admin
+// # 2. Books -> Public route
+// # 3. Library Card -> Public route
 
 const navigation = [
-    { name: "Books", href: "books" },
-    { name: "AudioBooks", href: "audiobooks" },
-    { name: "Softwares", href: "softwares" },
-    { name: "Company", href: "company" },
-    { name: "BookDetails", href: "bookdetails" },
+    { name: "Books", href: "/books" },
+    { name: "Library Card", href: "/library-card" },
 ];
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+    const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const { email, firstname, lastname } = useSelector((state) => state.user);
+    const dropdownRef = useRef(null);
+
+    // Check if user is logged in (has email)
+    const isLoggedIn = !!email;
+    const fullName = `${firstname} ${lastname}`.trim();
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(event.target)
+            ) {
+                setUserDropdownOpen(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const handleLogout = async () => {
+        try {
+            // Call logout API
+            await fetch("http://127.0.0.1:5000/api/v1/logout", {
+                method: "POST",
+                credentials: "include",
+            });
+        } catch (error) {
+            console.error("Logout API error:", error);
+        } finally {
+            // Clear Redux state and redirect regardless of API success
+            dispatch(logoutUser());
+            navigate("/");
+            setUserDropdownOpen(false);
+        }
+    };
+
+    const handleProfileClick = () => {
+        navigate("/profile");
+        setUserDropdownOpen(false);
+    };
 
     return (
         <>
@@ -52,12 +108,52 @@ export default function Header() {
                     ))}
                 </div>
                 <div className="hidden lg:flex lg:flex-1 lg:justify-end">
-                    <Link
-                        to="/login"
-                        className="text-sm/6 font-semibold text-white"
-                    >
-                        Log in <span aria-hidden="true">&rarr;</span>
-                    </Link>
+                    {isLoggedIn ? (
+                        // Logged in state - Profile image + name with dropdown
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                onClick={() =>
+                                    setUserDropdownOpen(!userDropdownOpen)
+                                }
+                                className="flex items-center gap-2 text-sm/6 font-semibold text-white hover:text-gray-300 transition-colors"
+                            >
+                                <img
+                                    alt={fullName}
+                                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                                    className="size-8 rounded-full bg-gray-800 outline outline-1 -outline-offset-1 outline-white/10"
+                                />
+                                <span>{fullName}</span>
+                                <ChevronDownIcon className="size-4" />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {userDropdownOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                                    <button
+                                        onClick={handleProfileClick}
+                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        Profile
+                                    </button>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        Logout
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        // Logged out state - Profile icon + "Log In" text
+                        <Link
+                            to="/login"
+                            className="flex items-center gap-2 text-sm/6 font-semibold text-white hover:text-gray-300 transition-colors"
+                        >
+                            <UserIcon className="size-6" />
+                            <span>Log In</span>
+                        </Link>
+                    )}
                 </div>
             </nav>
             <Dialog
@@ -99,12 +195,40 @@ export default function Header() {
                                 ))}
                             </div>
                             <div className="py-6">
-                                <Link
-                                    to="/login"
-                                    className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800"
-                                >
-                                    Log in
-                                </Link>
+                                {isLoggedIn ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-3 px-3 py-2">
+                                            <img
+                                                alt={fullName}
+                                                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                                                className="size-8 rounded-full bg-gray-800 outline outline-1 -outline-offset-1 outline-white/10"
+                                            />
+                                            <span className="text-base/7 font-semibold text-white">
+                                                {fullName}
+                                            </span>
+                                        </div>
+                                        <Link
+                                            to="/profile"
+                                            className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800"
+                                        >
+                                            Profile
+                                        </Link>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800 w-full text-left"
+                                        >
+                                            Logout
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <Link
+                                        to="/login"
+                                        className="flex items-center gap-2 -mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800"
+                                    >
+                                        <UserIcon className="size-6" />
+                                        <span>Log In</span>
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     </div>
