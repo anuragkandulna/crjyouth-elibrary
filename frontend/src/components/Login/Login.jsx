@@ -24,12 +24,12 @@ export default function Login() {
         try {
             // Fetch a unique nonce from the server
             const nonceResponse = await axios.get(
-                "http://127.0.0.1:5000/api/v1/nonce"
+                "http://localhost:5001/api/v1/nonce"
             );
             const { nonce } = nonceResponse.data;
 
             const response = await axios.post(
-                "http://127.0.0.1:5000/api/v1/login",
+                "http://localhost:5001/api/v1/login",
                 {
                     email: localEmail,
                     password: localpassword,
@@ -48,13 +48,13 @@ export default function Login() {
 
                 // Validate user data exists
                 if (data.user) {
-                    // Store user data in Redux state
+                    // Store user data in Redux state (session cookie is automatically handled by browser)
                     dispatch(
                         loginUser({
-                            email: data.user.email,
+                            user_id: data.user.user_id,
                             firstname: data.user.first_name,
                             lastname: data.user.last_name,
-                            token: "session-cookie", // Session is stored in HTTP-only cookie
+                            is_admin: data.user.is_admin,
                         })
                     );
 
