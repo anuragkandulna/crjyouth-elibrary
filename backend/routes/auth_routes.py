@@ -77,6 +77,26 @@ def debug_cookies():
     }), 200
 
 
+@auth_bp.route('/api/v1/debug/db-pool', methods=['GET'])
+def debug_db_pool():
+    """Debug endpoint to check database connection pool status."""
+    try:
+        from utils.sqlite_database import get_database_connection
+        db_connection = get_database_connection()
+        pool_stats = db_connection.get_pool_stats()
+        
+        return jsonify({
+            "database_pool": pool_stats,
+            "database_file": "data/crjyouth_library.db",
+            "status": "healthy"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "status": "error"
+        }), 500
+
+
 @auth_bp.route('/api/v1/check-password-strength', methods=['POST'])
 @rate_limit(max_requests=10, window_minutes=5)
 def check_password_strength():
@@ -183,7 +203,9 @@ def login():
                             "first_name": user.first_name,
                             "last_name": user.last_name,
                             "is_admin": user.is_admin
-                        }
+                        },
+                        "session_id": existing_session.session_id,
+                        "expires_at": existing_session.expires_at.isoformat() if existing_session.expires_at else None
                     }))
                     
                     response.set_cookie(
@@ -217,7 +239,9 @@ def login():
                         "first_name": user.first_name,
                         "last_name": user.last_name,
                         "is_admin": user.is_admin
-                    }
+                    },
+                    "session_id": new_session.session_id,
+                    "expires_at": new_session.expires_at.isoformat() if new_session.expires_at else None
                 }))
                 
                 response.set_cookie(
@@ -529,59 +553,87 @@ def refresh_session():
         return jsonify({"error": "Session refresh failed"}), 500
 
 @auth_bp.route('/api/v1/logout', methods=['POST'])
-@session_required
 @rate_limit(max_requests=10, window_minutes=5)
 def logout():
     """Logout current session."""
     try:
-        session_id = g.session_id
+        # Get session token from cookie
+        session_token = request.cookies.get('session_token')
         
-        with get_db_session() as session:
-            Session.invalidate_session(session, session_id)
-            
-        # Clear session cookie
+        if session_token:
+            try:
+                with get_db_session() as session:
+                    # Try to invalidate the session if it exists
+                    Session.invalidate_session(session, session_token)
+                    LOGGER.info(f"Session '{session_token}' invalidated during logout.")
+            except Exception as ex:
+                # Session might not exist or be invalid, that's okay for logout
+                LOGGER.warning(f"Session invalidation failed during logout: {ex}")
+        
+        # Always clear session cookie regardless of session state
         response = make_response(jsonify({"message": "Logged out successfully"}))
-        response.set_cookie('session_token', '', expires=0, secure=False)
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
         
-        LOGGER.info(f"User '{g.current_user['user_id']}' logged out. Session '{session_id}' invalidated.")
+        LOGGER.info("Logout completed successfully.")
         return response
         
     except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Logout failed")
-        return jsonify(error_response), status_code
+        LOGGER.error(f"Logout failed: {ex}")
+        # Even if there's an error, clear the cookie
+        response = make_response(jsonify({"message": "Logged out successfully"}))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        return response
 
 
 @auth_bp.route('/api/v1/logout-all', methods=['POST'])
-@session_only_required
 def logout_all_sessions():
     """Logout from all active sessions for the user"""
     try:
-        with get_db_session() as session:
-            user_uuid = g.current_user['user_uuid']
-            
-            # Invalidate all sessions for the user
-            count = Session.invalidate_all_user_sessions(session, user_uuid)
-            
-            # Log the logout all event
-            from utils.session_manager import SessionManager
-            SessionManager.log_session_event("logout_all", {
-                "user_uuid": user_uuid,
-                "session_id": g.session_id,
-                "device_id": "all",
-                "user_agent": "all"
-            }, {
-                "sessions_invalidated": count
-            })
-            
-            response = make_response(jsonify({
-                "message": f"Logged out from {count} sessions successfully"
-            }))
-            
-            # Clear the current session cookie
-            response.delete_cookie('session_token', path='/')
-            
-            return response, 200
-            
+        # Get session token from cookie
+        session_token = request.cookies.get('session_token')
+        
+        if session_token:
+            try:
+                with get_db_session() as session:
+                    # Try to get session info to find user_uuid
+                    session_obj = Session.get_session_by_id(session, session_token)
+                    if session_obj:
+                        user_uuid = session_obj.user_uuid
+                        
+                        # Invalidate all sessions for the user
+                        count = Session.invalidate_all_user_sessions(session, user_uuid)
+                        
+                        # Log the logout all event
+                        from utils.session_manager import SessionManager
+                        SessionManager.log_session_event("logout_all", {
+                            "user_uuid": user_uuid,
+                            "session_id": session_token,
+                            "device_id": "all",
+                            "user_agent": "all"
+                        }, {
+                            "sessions_invalidated": count
+                        })
+                        
+                        LOGGER.info(f"Logged out from {count} sessions for user {user_uuid}")
+                    else:
+                        LOGGER.warning("Session not found during logout-all")
+            except Exception as ex:
+                # Session might not exist or be invalid, that's okay for logout
+                LOGGER.warning(f"Session invalidation failed during logout-all: {ex}")
+        
+        # Always clear session cookie regardless of session state
+        response = make_response(jsonify({
+            "message": "Logged out from all sessions successfully"
+        }))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        
+        return response, 200
+        
     except Exception as ex:
         LOGGER.error(f"Logout all failed: {ex}")
-        return jsonify({"error": "Logout all failed"}), 500
+        # Even if there's an error, clear the cookie
+        response = make_response(jsonify({
+            "message": "Logged out from all sessions successfully"
+        }))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        return response, 200
