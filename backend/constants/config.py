@@ -23,6 +23,18 @@ SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
 CRJYOUTH_MAIL_NO_REPLY = os.getenv('CRJYOUTH_MAIL_NO_REPLY')
 
+# Session Management Configuration
+SESSION_CONFIG = {
+    "max_sessions_per_user": 5,
+    "session_ttl_hours": 4,
+    "refresh_threshold_seconds": 120,
+    "cleanup_interval_hours": 1,
+    "eviction_strategy": "per_device_lru_then_global_lru",
+    "cooldown_period_minutes": 5,
+    "retry_backoff_ms": [250, 1000, 2000],
+    "max_retries": 3
+}
+
 # Raise exceptions if variable not found
 if not DB_NAME:
     raise ValueError('DB_NAME not found in .env file.')
