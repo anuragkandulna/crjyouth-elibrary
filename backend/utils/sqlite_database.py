@@ -21,7 +21,7 @@ Usage:
         session.close()
     
     # Use context manager for automatic transaction management (recommended)
-    from utils.psql_database import get_db_session
+    from utils.sqlite_database import get_db_session
     
     with get_db_session() as session:
         user = session.query(LibraryUser).first()
