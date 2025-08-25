@@ -18,7 +18,7 @@ from utils.security import verify_strong_password
 from utils.mail_setup import mail
 from utils.route_utils import (
     generate_nonce, validate_nonce, validate_request_data,
-    rate_limit, nonce_store, get_device_info, session_required
+    rate_limit, nonce_store, get_device_info, session_required, session_only_required
 )
 from models.session import Session
 from models.exceptions import DuplicateUserError, WeakPasswordError
@@ -64,6 +64,16 @@ def get_nonce():
     nonce = generate_nonce()
     nonce_store[nonce] = True
     return jsonify({"nonce": nonce}), 200
+
+
+@auth_bp.route('/api/v1/debug/cookies', methods=['GET'])
+def debug_cookies():
+    """Debug endpoint to check cookies."""
+    return jsonify({
+        "cookies": dict(request.cookies),
+        "headers": dict(request.headers),
+        "session_token": request.cookies.get('session_token')
+    }), 200
 
 
 @auth_bp.route('/api/v1/check-password-strength', methods=['POST'])
@@ -203,8 +213,10 @@ def login():
                 'session_token', 
                 user_session.session_id, 
                 httponly=True, 
-                samesite='Strict', 
-                secure=True,
+                samesite='Lax',  # Changed to Lax for better compatibility
+                secure=False,  # Set to False for HTTP development
+                path='/',
+                domain=None,  # Let browser set domain automatically
                 expires=user_session.expires_at
             )
             
@@ -368,7 +380,7 @@ def password_reset_confirm():
 
 # -------------------- Session Management Routes -------------------- #
 @auth_bp.route('/api/v1/session/info', methods=['GET'])
-@session_required
+@session_only_required
 @rate_limit(max_requests=20, window_minutes=5)
 def get_session_info():
     """Get current session information."""
@@ -391,7 +403,13 @@ def get_session_info():
                 "expires_at": user_session.expires_at.isoformat(),
                 "last_refreshed": user_session.last_refreshed.isoformat() if user_session.last_refreshed else None,
                 "time_until_expiry": user_session.time_until_expiry().total_seconds() if user_session.time_until_expiry() else None,
-                "user_id": g.current_user['user_id']
+                "user": {
+                    "user_id": g.current_user['user_id'],
+                    "first_name": g.current_user['first_name'],
+                    "last_name": g.current_user['last_name'],
+                    "email": g.current_user['email'],
+                    "is_admin": g.current_user['is_admin']
+                }
             }), 200
             
     except Exception as ex:
@@ -439,7 +457,7 @@ def logout():
             
         # Clear session cookie
         response = make_response(jsonify({"message": "Logged out successfully"}))
-        response.set_cookie('session_token', '', expires=0)
+        response.set_cookie('session_token', '', expires=0, secure=False)
         
         LOGGER.info(f"User '{g.current_user['user_id']}' logged out. Session '{session_id}' invalidated.")
         return response
@@ -464,7 +482,7 @@ def logout_all():
                 return jsonify({"error": "User not found"}), 404
             count = Session.deactivate_all_sessions(session, user.user_uuid)
         response = make_response(jsonify({"message": "Logged out from all sessions"}))
-        response.set_cookie('session_token', '', expires=0)
+        response.set_cookie('session_token', '', expires=0, secure=False)
         
         LOGGER.info(f"User '{user_id}' logged out from all sessions.")
         return response
