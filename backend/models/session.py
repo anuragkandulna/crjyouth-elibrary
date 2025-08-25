@@ -18,8 +18,8 @@ class Session(Base):
 
     session_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_uuid: Mapped[str] = mapped_column(ForeignKey("users.user_uuid"), nullable=False)
-    device_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    device_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -41,8 +41,8 @@ class Session(Base):
             if not user_uuid or not device_id:
                 raise ValueError("user_uuid and device_id are required")
             
-            if len(device_id) > 100:
-                raise ValueError("device_id too long (max 100 characters)")
+            if len(device_id) > 255:
+                raise ValueError("device_id too long (max 255 characters)")
 
             now = utc_datetime()
             new_session = Session(
