@@ -98,21 +98,42 @@ if __name__ == "__main__":
         if seed_data["offices"]:
             seed_offices_sql(session, seed_data["offices"])
         
+        if seed_data["users"]:
+            seed_users_sql(session, seed_data["users"])
+        
         if seed_data["books"]:
             seed_books_sql(session, seed_data["books"])
         
         if seed_data["book_copies"]:
             seed_book_copies_sql(session, seed_data["book_copies"])
         
-        # Optional seeding (sessions and transactions are typically runtime data)
-        if seed_data["sessions"]:
-            seed_sessions_sql(session, seed_data["sessions"])
+        # Sessions and transactions depend on users existing first
+        # Only seed sessions if users exist and session data is valid
+        if seed_data["sessions"] and seed_data["users"] and len(seed_data["sessions"]) > 0:
+            # Validate that session user_uuid references exist
+            valid_sessions = []
+            # Since users are created with random UUIDs, we can't validate against them
+            # For now, we'll skip session seeding as sessions are runtime data
+            LOGGER.info("ℹ️ Skipping session seeding (sessions are runtime data with dynamic user_uuid references)")
+        else:
+            LOGGER.info("ℹ️ No sessions to seed (sessions are typically runtime data)")
         
-        if seed_data["transactions"]:
-            seed_transactions_sql(session, seed_data["transactions"])
-        
-        if seed_data["users"]:
-            seed_users_sql(session, seed_data["users"])
+        if seed_data["transactions"] and seed_data["users"]:
+            # Validate that transaction user references exist
+            valid_transactions = []
+            # Users data is a dict with user_id as keys
+            user_ids = set(seed_data["users"].keys())
+            
+            for transaction in seed_data["transactions"]:
+                if str(transaction.get("customer_id")) in user_ids:
+                    valid_transactions.append(transaction)
+                else:
+                    LOGGER.warning(f"⚠️ Skipping transaction with invalid customer_id: {transaction.get('customer_id')}")
+            
+            if valid_transactions:
+                seed_transactions_sql(session, valid_transactions)
+            else:
+                LOGGER.warning("⚠️ No valid transactions to seed (all customer_id references invalid)")
         
         LOGGER.info("🎉 Database seeding completed successfully!")
 
