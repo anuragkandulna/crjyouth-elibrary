@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import axios from "axios";
 import { loginUser } from "../../features/user/userSlice";
+import { getCurrentUser } from "../../utils/authUtils";
+import apiClient from "../../utils/apiClient";
 
 export default function Login() {
     const [localEmail, setLocalEmail] = useState("");
@@ -11,9 +12,25 @@ export default function Login() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
+    useEffect(() => {
+        // Check if user is already logged in
+        const checkAuthStatus = async () => {
+            try {
+                const user = await getCurrentUser();
+                if (user) {
+                    // User is already logged in, redirect to home
+                    navigate("/");
+                }
+            } catch (error) {
+                console.error("Auth check failed:", error);
+            }
+        };
+
+        checkAuthStatus();
+    }, [navigate]);
+
     const handleLogin = async (e) => {
         e.preventDefault();
-
         if (!localEmail || !localpassword) {
             alert("Please enter both email and password");
             return;
@@ -22,72 +39,46 @@ export default function Login() {
         setIsLoading(true);
 
         try {
-            // Fetch a unique nonce from the server
-            const nonceResponse = await axios.get(
-                "http://localhost:5001/api/v1/nonce"
+            // Get nonce
+            const nonceResponse = await apiClient.getJSON("/api/v1/nonce");
+            const { nonce } = nonceResponse;
+
+            // Login with device information
+            const loginData = {
+                email: localEmail,
+                password: localpassword,
+                nonce: nonce,
+                device_id:
+                    navigator.userAgent +
+                    "_" +
+                    screen.width +
+                    "x" +
+                    screen.height,
+            };
+
+            const response = await apiClient.postJSON(
+                "/api/v1/login",
+                loginData
             );
-            const { nonce } = nonceResponse.data;
 
-            const response = await axios.post(
-                "http://localhost:5001/api/v1/login",
-                {
-                    email: localEmail,
-                    password: localpassword,
-                    nonce: nonce,
-                },
-                {
-                    withCredentials: true, // Important: This allows cookies to be sent/received
-                }
-            );
-
-            const data = response.data;
-            console.log("Login Response: ", response);
-
-            if (response.status === 200) {
-                console.log("Login Successful!!!", data);
-
-                // Validate user data exists
-                if (data.user) {
-                    // Store user data in Redux state (session cookie is automatically handled by browser)
-                    dispatch(
-                        loginUser({
-                            user_id: data.user.user_id,
-                            firstname: data.user.first_name,
-                            lastname: data.user.last_name,
-                            is_admin: data.user.is_admin,
-                        })
-                    );
-
-                    // Redirect to books page
-                    navigate("/books");
-                } else {
-                    alert(
-                        "Login successful but user data is missing. Please try again."
-                    );
-                }
+            if (response.user) {
+                dispatch(
+                    loginUser({
+                        user_id: response.user.user_id,
+                        firstname: response.user.first_name,
+                        lastname: response.user.last_name,
+                        is_admin: response.user.is_admin,
+                    })
+                );
+                navigate("/books");
             } else {
-                console.error("Login failed: ", data);
-                alert(data.error || "Login failed. Please try again.");
+                alert(
+                    "Login successful but user data is missing. Please try again."
+                );
             }
         } catch (error) {
-            console.error("Login failed: ", error);
-
-            // Handle different types of errors
-            if (error.response) {
-                // Server responded with error status
-                const errorMessage =
-                    error.response.data?.error ||
-                    "Login failed. Please check your credentials.";
-                alert(errorMessage);
-            } else if (error.request) {
-                // Network error
-                alert(
-                    "Network error. Please check your connection and try again."
-                );
-            } else {
-                // Other error
-                alert("An unexpected error occurred. Please try again.");
-            }
+            console.error("Login error:", error);
+            alert(error.message || "Login failed. Please try again.");
         } finally {
             setIsLoading(false);
         }

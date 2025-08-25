@@ -5,6 +5,8 @@ import Header from "./components/Header/Header";
 import Footer from "./components/Footer/Footer";
 import { loginUser } from "./features/user/userSlice";
 import { getCurrentUser } from "./utils/authUtils";
+import sessionManager from "./services/sessionManager";
+import { store } from "./app/store";
 
 // <Header> <Outlet> <Footer>
 // Basic Layout of App
@@ -38,9 +40,16 @@ function App() {
                 console.error("Failed to check authentication:", error);
             }
         };
-
         checkAuth();
     }, [dispatch]);
+
+    // Expose store globally for session manager
+    useEffect(() => {
+        window.store = store;
+        return () => {
+            delete window.store;
+        };
+    }, []);
 
     return (
         <>

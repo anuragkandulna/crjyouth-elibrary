@@ -9,6 +9,7 @@ import { Dialog, DialogPanel } from "@headlessui/react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logoutUser } from "../../features/user/userSlice";
+import sessionManager from "../../services/sessionManager";
 
 // # 1. Admin Dashboard -> Private route only for admin
 // # 2. Books -> Public route
@@ -50,18 +51,37 @@ export default function Header() {
 
     const handleLogout = async () => {
         try {
-            // Call logout API to invalidate session on server
-            await fetch("http://localhost:5001/api/v1/logout", {
-                method: "POST",
-                credentials: "include", // Include session cookie
-            });
+            const response = await fetch(
+                "http://localhost:5001/api/v1/logout",
+                {
+                    method: "POST",
+                    credentials: "include",
+                }
+            );
+            if (response.ok) {
+                dispatch(logoutUser());
+                navigate("/");
+            } else {
+                alert("Logout failed. Please try again.");
+            }
         } catch (error) {
-            console.error("Logout API error:", error);
-        } finally {
-            // Clear Redux state and redirect regardless of API success
-            dispatch(logoutUser());
-            navigate("/");
-            setUserDropdownOpen(false);
+            console.error("Logout error:", error);
+            alert("Logout failed. Please try again.");
+        }
+    };
+
+    const handleLogoutAll = async () => {
+        try {
+            const success = await sessionManager.logoutAllSessions();
+            if (success) {
+                dispatch(logoutUser());
+                navigate("/");
+            } else {
+                alert("Logout all failed. Please try again.");
+            }
+        } catch (error) {
+            console.error("Logout all error:", error);
+            alert("Logout all failed. Please try again.");
         }
     };
 
@@ -141,6 +161,12 @@ export default function Header() {
                                     >
                                         Logout
                                     </button>
+                                    <button
+                                        onClick={handleLogoutAll}
+                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100"
+                                    >
+                                        Logout All
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -194,41 +220,41 @@ export default function Header() {
                                     </Link>
                                 ))}
                             </div>
-                            <div className="py-6">
-                                {isLoggedIn ? (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-3 px-3 py-2">
-                                            <img
-                                                alt={fullName}
-                                                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                                                className="size-8 rounded-full bg-gray-800 outline outline-1 -outline-offset-1 outline-white/10"
-                                            />
-                                            <span className="text-base/7 font-semibold text-white">
-                                                {fullName}
-                                            </span>
-                                        </div>
+                            <div className="lg:hidden">
+                                <div className="px-2 pt-2 pb-3 space-y-1">
+                                    {isLoggedIn ? (
+                                        <>
+                                            <div className="px-3 py-2 text-sm text-gray-300">
+                                                Welcome, {fullName}
+                                            </div>
+                                            <Link
+                                                to="/profile"
+                                                className="block px-3 py-2 text-base font-medium text-white hover:text-gray-300 hover:bg-gray-700 rounded-md"
+                                            >
+                                                Profile
+                                            </Link>
+                                            <button
+                                                onClick={handleLogout}
+                                                className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gray-300 hover:bg-gray-700 rounded-md"
+                                            >
+                                                Logout
+                                            </button>
+                                            <button
+                                                onClick={handleLogoutAll}
+                                                className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gray-300 hover:bg-gray-700 rounded-md border-t border-gray-600"
+                                            >
+                                                Logout All
+                                            </button>
+                                        </>
+                                    ) : (
                                         <Link
-                                            to="/profile"
-                                            className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800"
+                                            to="/login"
+                                            className="block px-3 py-2 text-base font-medium text-white hover:text-gray-300 hover:bg-gray-700 rounded-md"
                                         >
-                                            Profile
+                                            Login
                                         </Link>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800 w-full text-left"
-                                        >
-                                            Logout
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <Link
-                                        to="/login"
-                                        className="flex items-center gap-2 -mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-gray-800"
-                                    >
-                                        <UserIcon className="size-6" />
-                                        <span>Log In</span>
-                                    </Link>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
