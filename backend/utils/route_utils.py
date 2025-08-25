@@ -207,6 +207,71 @@ def session_required(f):
     return wrapper
 
 
+def session_only_required(f):
+    """Decorator to require valid session only (no JWT required)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        # Get session from request
+        session_id = get_session_from_request()
+        
+        if not session_id:
+            return jsonify({
+                "error": "Session not found. Please login again.",
+                "requires_login": True
+            }), 401
+        
+        # Validate session
+        is_valid, session_error = validate_session(session_id)
+        
+        if not is_valid:
+            return jsonify({
+                "error": session_error or "Session expired. Please login again.",
+                "requires_login": True
+            }), 401
+        
+        # Get user information from session
+        try:
+            with get_db_session() as session:
+                session_obj = Session.get_session_by_id(session, session_id)
+                if not session_obj:
+                    return jsonify({
+                        "error": "Invalid session. Please login again.",
+                        "requires_login": True
+                    }), 401
+                
+                # Get user information from database
+                from models.user import User
+                user = session.query(User).filter_by(user_uuid=session_obj.user_uuid).first()
+                if not user:
+                    return jsonify({
+                        "error": "User not found. Please login again.",
+                        "requires_login": True
+                    }), 401
+                
+                # Store user information in Flask g
+                g.current_user = {
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_admin": user.is_admin,
+                    "user_uuid": user.user_uuid
+                }
+                g.session_id = session_id
+                
+                # Refresh session on successful validation
+                refresh_user_session(session_id)
+                
+        except Exception as ex:
+            return jsonify({
+                "error": "Session validation failed. Please login again.",
+                "requires_login": True
+            }), 401
+        
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def role_required(allowed_roles):
     """Decorator to require specific user roles using session tokens."""
     def decorator(f):
