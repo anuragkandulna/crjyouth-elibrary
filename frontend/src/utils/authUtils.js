@@ -1,53 +1,36 @@
 /**
- * Authentication utility functions
+ * Authentication Utilities
+ * Centralized functions for authentication-related tasks
  */
 
-/**
- * Check if user is authenticated by calling the session info endpoint
- * @returns {Promise<boolean>} True if authenticated, false otherwise
- */
+import apiClient from "./apiClient.js";
+
 export const checkAuthStatus = async () => {
     try {
-        const response = await fetch(
-            "http://localhost:5001/api/v1/session/info",
-            {
-                method: "GET",
-                credentials: "include", // Include session cookie
-            }
-        );
-
-        if (response.ok) {
-            const data = await response.json();
-            return data.user_id ? true : false;
-        }
-        return false;
+        const response = await apiClient.get("/api/v1/session/info");
+        return response.ok;
     } catch (error) {
-        console.error("Auth check failed:", error);
+        console.error("Auth status check failed:", error);
         return false;
     }
 };
 
-/**
- * Get current user info from session
- * @returns {Promise<Object|null>} User object or null if not authenticated
- */
 export const getCurrentUser = async () => {
     try {
-        const response = await fetch(
-            "http://localhost:5001/api/v1/session/info",
-            {
-                method: "GET",
-                credentials: "include",
-            }
-        );
-
-        if (response.ok) {
-            const data = await response.json();
-            return data.user || null;
-        }
-        return null;
+        const data = await apiClient.getJSON("/api/v1/session/info");
+        return data.user || null;
     } catch (error) {
         console.error("Get user info failed:", error);
         return null;
+    }
+};
+
+export const refreshSession = async () => {
+    try {
+        const data = await apiClient.postJSON("/api/v1/auth/refresh");
+        return data;
+    } catch (error) {
+        console.error("Session refresh failed:", error);
+        throw error;
     }
 };
