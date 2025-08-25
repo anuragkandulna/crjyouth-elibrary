@@ -24,11 +24,11 @@ export default function Header() {
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const navigate = useNavigate();
     const dispatch = useDispatch();
-    const { email, firstname, lastname } = useSelector((state) => state.user);
+    const { user_id, firstname, lastname } = useSelector((state) => state.user);
     const dropdownRef = useRef(null);
 
-    // Check if user is logged in (has email)
-    const isLoggedIn = !!email;
+    // Check if user is logged in (has user_id)
+    const isLoggedIn = !!user_id;
     const fullName = `${firstname} ${lastname}`.trim();
 
     // Close dropdown when clicking outside
@@ -50,10 +50,10 @@ export default function Header() {
 
     const handleLogout = async () => {
         try {
-            // Call logout API
-            await fetch("http://127.0.0.1:5000/api/v1/logout", {
+            // Call logout API to invalidate session on server
+            await fetch("http://localhost:5001/api/v1/logout", {
                 method: "POST",
-                credentials: "include",
+                credentials: "include", // Include session cookie
             });
         } catch (error) {
             console.error("Logout API error:", error);
