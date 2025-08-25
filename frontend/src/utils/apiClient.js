@@ -26,9 +26,6 @@ class ApiClient {
             ...options,
         };
 
-        // Check and refresh session if needed (proactive refresh)
-        await sessionManager.checkAndRefreshSession();
-
         // Make the request
         const response = await fetch(url, requestOptions);
 

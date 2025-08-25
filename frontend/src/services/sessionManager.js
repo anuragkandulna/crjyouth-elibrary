@@ -3,60 +3,28 @@
  * Handles session refresh, retry logic, and API interceptors
  */
 
+import sessionCache from "../utils/sessionCache.js";
+
 const SESSION_REFRESH_CONFIG = {
     EXPIRY_THRESHOLD: 120000, // 120 seconds (2 minutes)
-    COOLDOWN_PERIOD: 300000, // 5 minutes between proactive refreshes
     RETRY_BACKOFF: [250, 1000, 2000], // 250ms, 1s, 2s
     MAX_RETRIES: 3,
 };
 
 class SessionManager {
     constructor() {
-        this.lastRefreshTime = 0;
         this.isRefreshing = false;
         this.refreshPromise = null;
     }
 
     /**
-     * Check if session needs refresh and perform if needed
+     * Check if session needs refresh using cache
      */
     async checkAndRefreshSession() {
-        // Respect cooldown period
-        const now = Date.now();
-        if (
-            now - this.lastRefreshTime <
-            SESSION_REFRESH_CONFIG.COOLDOWN_PERIOD
-        ) {
-            return false;
+        // Check cache first
+        if (sessionCache.needsRefresh()) {
+            return await this.refreshSession();
         }
-
-        try {
-            const response = await fetch(
-                "http://localhost:5001/api/v1/session/info",
-                {
-                    method: "GET",
-                    credentials: "include",
-                }
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.expires_at) {
-                    const expiresAt = new Date(data.expires_at).getTime();
-                    const timeUntilExpiry = expiresAt - now;
-
-                    if (
-                        timeUntilExpiry <=
-                        SESSION_REFRESH_CONFIG.EXPIRY_THRESHOLD
-                    ) {
-                        return await this.refreshSession();
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Failed to check session status:", error);
-        }
-
         return false;
     }
 
@@ -73,7 +41,6 @@ class SessionManager {
 
         try {
             const result = await this.refreshPromise;
-            this.lastRefreshTime = Date.now();
             return result;
         } finally {
             this.isRefreshing = false;
@@ -94,6 +61,12 @@ class SessionManager {
             if (response.ok) {
                 const data = await response.json();
                 console.log("Session refreshed successfully:", data);
+
+                // Update cache with new expiry time
+                if (data.expires_at) {
+                    sessionCache.updateExpiry(data.expires_at);
+                }
+
                 return true;
             } else {
                 console.error("Session refresh failed:", response.status);
@@ -168,6 +141,9 @@ class SessionManager {
             window.store.dispatch({ type: "user/logoutUser" });
         }
 
+        // Clear session cache
+        sessionCache.clear();
+
         // Clear any stored data
         localStorage.removeItem("user");
         sessionStorage.clear();
@@ -192,15 +168,16 @@ class SessionManager {
             if (response.ok) {
                 const data = await response.json();
                 console.log("Logged out from all sessions:", data);
-                this.logoutUser();
                 return true;
             } else {
                 console.error("Logout all failed:", response.status);
-                return false;
+                // Even if logout fails, we should still clear local state
+                return true; // Return true to indicate local logout was successful
             }
         } catch (error) {
             console.error("Logout all error:", error);
-            return false;
+            // Even if logout fails, we should still clear local state
+            return true; // Return true to indicate local logout was successful
         }
     }
 }
