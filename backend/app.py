@@ -73,12 +73,20 @@ CORS(app,
 # -------------------------------
 # Verify database connection on startup
 try:
-    from utils.sqlite_database import get_db_session
+    from utils.sqlite_database import get_db_session, get_database_connection
     from sqlalchemy import text
+    
+    # Get database connection (this initializes the pool)
+    db_connection = get_database_connection()
+    
+    # Verify database connection on startup
     with get_db_session() as session:
         # Simple connection test
         session.execute(text("SELECT 1"))
-    LOGGER.info("Database connection verified")
+    
+    # Log pool statistics
+    pool_stats = db_connection.get_pool_stats()
+    LOGGER.info(f"Database connection pool verified. Pool stats: {pool_stats}")
 except Exception as ex:
     LOGGER.critical(f"Database connection failed - {ex}")
     raise RuntimeError(f"Application startup failed: {ex}")
