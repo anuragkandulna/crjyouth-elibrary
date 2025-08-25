@@ -7,7 +7,7 @@ from flask_cors import CORS
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from utils.mail_setup import mail
-from utils.timezone_verification import startup_timezone_check
+# Timezone verification removed - using simple SQLite-compatible timestamps
 from routes.auth_routes import auth_bp
 from routes.profile_routes import profile_bp
 from routes.transaction_routes import transaction_bp
@@ -71,14 +71,16 @@ CORS(app,
 # -------------------------------
 # Security Checks
 # -------------------------------
-# Verify timezone configuration on startup
+# Verify database connection on startup
 try:
     from utils.sqlite_database import get_db_session
+    from sqlalchemy import text
     with get_db_session() as session:
-        startup_timezone_check(session)
-    LOGGER.info("Security: Timezone configuration verified")
+        # Simple connection test
+        session.execute(text("SELECT 1"))
+    LOGGER.info("Database connection verified")
 except Exception as ex:
-    LOGGER.critical(f"Security: Timezone verification failed - {ex}")
+    LOGGER.critical(f"Database connection failed - {ex}")
     raise RuntimeError(f"Application startup failed: {ex}")
 
 # -------------------------------
