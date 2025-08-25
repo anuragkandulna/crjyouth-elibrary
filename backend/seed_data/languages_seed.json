@@ -1,1 +1,14 @@
-["English", "Hindi", "Bengali"]
+[
+    {
+        "name": "English",
+        "description": "English language"
+    },
+    {
+        "name": "Hindi",
+        "description": "Hindi language"
+    },
+    {
+        "name": "Bengali",
+        "description": "Bengali language"
+    }
+]

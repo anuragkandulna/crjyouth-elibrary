@@ -1,38 +1,38 @@
 [
-    [
-        101,
-        "The Lion, the Witch and the Wardrobe",
-        1,
-        "CSL001",
-        "Fantasy",
-        "English",
-        1950,
-        15.99,
-        "Fantasy novel for children",
-        { "chapters": 17, "pages": 208 }
-    ],
-    [
-        102,
-        "The Lord of the Rings",
-        2,
-        "JRT001",
-        "Fantasy",
-        "English",
-        1954,
-        29.99,
-        "Epic fantasy trilogy",
-        { "books": 3, "pages": 1216 }
-    ],
-    [
-        103,
-        "Orthodoxy",
-        3,
-        "GKC001",
-        "Philosophy",
-        "English",
-        1908,
-        12.99,
-        "Christian apologetics",
-        { "chapters": 9, "pages": 160 }
-    ]
+    {
+        "isbn": 101,
+        "title": "The Lion, the Witch and the Wardrobe",
+        "author_code": 1,
+        "publisher_code": "CSL001",
+        "category": "Fantasy",
+        "language": "English",
+        "first_publication_year": 1950,
+        "price": 15.99,
+        "description": "Fantasy novel for children",
+        "contents": { "chapters": 17, "pages": 208 }
+    },
+    {
+        "isbn": 102,
+        "title": "The Lord of the Rings",
+        "author_code": 2,
+        "publisher_code": "JRT001",
+        "category": "Fantasy",
+        "language": "English",
+        "first_publication_year": 1954,
+        "price": 29.99,
+        "description": "Epic fantasy trilogy",
+        "contents": { "books": 3, "pages": 1216 }
+    },
+    {
+        "isbn": 103,
+        "title": "Orthodoxy",
+        "author_code": 3,
+        "publisher_code": "GKC001",
+        "category": "Philosophy",
+        "language": "English",
+        "first_publication_year": 1908,
+        "price": 12.99,
+        "description": "Christian apologetics",
+        "contents": { "chapters": 9, "pages": 160 }
+    }
 ]
