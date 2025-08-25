@@ -10,6 +10,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logoutUser } from "../../features/user/userSlice";
 import sessionManager from "../../services/sessionManager";
+import sessionCache from "../../utils/sessionCache";
 
 // # 1. Admin Dashboard -> Private route only for admin
 // # 2. Books -> Public route
@@ -51,6 +52,9 @@ export default function Header() {
 
     const handleLogout = async () => {
         try {
+            // Clear session cache first
+            sessionCache.clear();
+
             const response = await fetch(
                 "http://localhost:5001/api/v1/logout",
                 {
@@ -62,26 +66,41 @@ export default function Header() {
                 dispatch(logoutUser());
                 navigate("/");
             } else {
-                alert("Logout failed. Please try again.");
+                // Even if logout fails, clear local state
+                sessionCache.clear();
+                dispatch(logoutUser());
+                navigate("/");
             }
         } catch (error) {
             console.error("Logout error:", error);
-            alert("Logout failed. Please try again.");
+            // Even if logout fails, clear local state
+            sessionCache.clear();
+            dispatch(logoutUser());
+            navigate("/");
         }
     };
 
     const handleLogoutAll = async () => {
         try {
+            // Clear session cache first
+            sessionCache.clear();
+
             const success = await sessionManager.logoutAllSessions();
             if (success) {
                 dispatch(logoutUser());
                 navigate("/");
             } else {
-                alert("Logout all failed. Please try again.");
+                // Even if logout fails, clear local state
+                sessionCache.clear();
+                dispatch(logoutUser());
+                navigate("/");
             }
         } catch (error) {
             console.error("Logout all error:", error);
-            alert("Logout all failed. Please try again.");
+            // Even if logout fails, clear local state
+            sessionCache.clear();
+            dispatch(logoutUser());
+            navigate("/");
         }
     };
 

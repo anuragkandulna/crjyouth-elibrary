@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { loginUser } from "../../features/user/userSlice";
-import { getCurrentUser } from "../../utils/authUtils";
 import apiClient from "../../utils/apiClient";
+import sessionCache from "../../utils/sessionCache";
 
 export default function Login() {
     const [localEmail, setLocalEmail] = useState("");
@@ -12,22 +12,13 @@ export default function Login() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    useEffect(() => {
-        // Check if user is already logged in
-        const checkAuthStatus = async () => {
-            try {
-                const user = await getCurrentUser();
-                if (user) {
-                    // User is already logged in, redirect to home
-                    navigate("/");
-                }
-            } catch (error) {
-                console.error("Auth check failed:", error);
-            }
-        };
-
-        checkAuthStatus();
-    }, [navigate]);
+    // Check if user is already logged in using cache
+    const cachedUser = sessionCache.getCachedUser();
+    if (cachedUser && sessionCache.isValid()) {
+        // User is already logged in, redirect to home
+        navigate("/");
+        return null; // Don't render the component
+    }
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -62,6 +53,14 @@ export default function Login() {
             );
 
             if (response.user) {
+                // Cache session data
+                sessionCache.setSession({
+                    user: response.user,
+                    sessionId: response.session_id,
+                    expiresAt: response.expires_at,
+                    deviceId: loginData.device_id,
+                });
+
                 dispatch(
                     loginUser({
                         user_id: response.user.user_id,

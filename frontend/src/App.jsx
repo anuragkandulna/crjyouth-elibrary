@@ -4,8 +4,7 @@ import { useDispatch } from "react-redux";
 import Header from "./components/Header/Header";
 import Footer from "./components/Footer/Footer";
 import { loginUser } from "./features/user/userSlice";
-import { getCurrentUser } from "./utils/authUtils";
-import sessionManager from "./services/sessionManager";
+import sessionCache from "./utils/sessionCache";
 import { store } from "./app/store";
 
 // <Header> <Outlet> <Footer>
@@ -21,26 +20,19 @@ function App() {
         }
     }, []);
 
-    // Check authentication status on app load
+    // Check authentication status using cache
     useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const user = await getCurrentUser();
-                if (user) {
-                    dispatch(
-                        loginUser({
-                            user_id: user.user_id,
-                            firstname: user.first_name,
-                            lastname: user.last_name,
-                            is_admin: user.is_admin,
-                        })
-                    );
-                }
-            } catch (error) {
-                console.error("Failed to check authentication:", error);
-            }
-        };
-        checkAuth();
+        const cachedUser = sessionCache.getCachedUser();
+        if (cachedUser && sessionCache.isValid()) {
+            dispatch(
+                loginUser({
+                    user_id: cachedUser.user_id,
+                    firstname: cachedUser.first_name,
+                    lastname: cachedUser.last_name,
+                    is_admin: cachedUser.is_admin,
+                })
+            );
+        }
     }, [dispatch]);
 
     // Expose store globally for session manager
