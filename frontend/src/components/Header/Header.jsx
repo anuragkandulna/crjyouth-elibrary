@@ -16,6 +16,9 @@ import sessionCache from "../../utils/sessionCache";
 // # 2. Books -> Public route
 // # 3. Library Card -> Public route
 
+import logo from "../../assets/library_logo_light.png";
+import { LIBRARY_NAME } from "../../constants/constants";
+
 const navigation = [
     { name: "Books", href: "/books" },
     { name: "Library Card", href: "/library-card" },
