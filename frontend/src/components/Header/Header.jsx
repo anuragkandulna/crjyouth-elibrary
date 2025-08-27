@@ -124,10 +124,10 @@ export default function Header() {
                         className="-m-1.5 p-1.5 flex items-center gap-3"
                     >
                         <span className="sr-only">{LIBRARY_NAME}</span>
-                        <div className="border-2 border-white rounded-full p-1">
-                            <img alt="" src={logo} className="h-10 w-auto" />
+                        <div className="border-2 border-white rounded-full p-0.5">
+                            <img alt="" src={logo} className="h-6 w-auto" />
                         </div>
-                        <span className="text-xl font-bold text-white">
+                        <span className="text-lg font-bold text-white">
                             {LIBRARY_NAME}
                         </span>
                     </Link>
@@ -221,10 +221,10 @@ export default function Header() {
                             className="-m-1.5 p-1.5 flex items-center gap-2"
                         >
                             <span className="sr-only">{LIBRARY_NAME}</span>
-                            <div className="border-2 border-white rounded-full p-1">
-                                <img alt="" src={logo} className="h-8 w-auto" />
+                            <div className="border-2 border-white rounded-full p-0.5">
+                                <img alt="" src={logo} className="h-5 w-auto" />
                             </div>
-                            <span className="text-lg font-bold text-white">
+                            <span className="text-base font-bold text-white">
                                 {LIBRARY_NAME}
                             </span>
                         </Link>
