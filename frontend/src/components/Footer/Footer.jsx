@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { LIBRARY_NAME } from "../../constants/constants";
 
 const footerNavigation = {
@@ -79,25 +80,25 @@ export default function Footer() {
                     className="-mb-6 flex flex-wrap justify-center gap-x-12 gap-y-3 text-sm/6"
                 >
                     {footerNavigation.main.map((item) => (
-                        <a
+                        <Link
                             key={item.name}
-                            href={item.href}
+                            to={item.href}
                             className="text-gray-400 hover:text-white"
                         >
                             {item.name}
-                        </a>
+                        </Link>
                     ))}
                 </nav>
                 <div className="mt-16 flex justify-center gap-x-10">
                     {footerNavigation.social.map((item) => (
-                        <a
+                        <Link
                             key={item.name}
-                            href={item.href}
+                            to={item.href}
                             className="text-gray-400 hover:text-gray-300"
                         >
                             <span className="sr-only">{item.name}</span>
                             <item.icon aria-hidden="true" className="size-6" />
-                        </a>
+                        </Link>
                     ))}
                 </div>
                 <p className="mt-10 text-center text-sm/6 text-gray-400">
