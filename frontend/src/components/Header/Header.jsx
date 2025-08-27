@@ -116,16 +116,20 @@ export default function Header() {
         <>
             <nav
                 aria-label="Global"
-                className="flex items-center justify-between p-6 lg:px-8 bg-gray-900"
+                className="flex items-center justify-between p-4 lg:px-6 bg-gray-900"
             >
                 <div className="flex lg:flex-1">
-                    <Link href="#" className="-m-1.5 p-1.5">
-                        <span className="sr-only">Your Company</span>
-                        <img
-                            alt=""
-                            src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=500"
-                            className="h-8 w-auto"
-                        />
+                    <Link
+                        to="/"
+                        className="-m-1.5 p-1.5 flex items-center gap-3"
+                    >
+                        <span className="sr-only">{LIBRARY_NAME}</span>
+                        <div className="border-2 border-white rounded-full p-1">
+                            <img alt="" src={logo} className="h-10 w-auto" />
+                        </div>
+                        <span className="text-xl font-bold text-white">
+                            {LIBRARY_NAME}
+                        </span>
                     </Link>
                 </div>
                 <div className="flex lg:hidden">
@@ -212,13 +216,17 @@ export default function Header() {
                 <div className="fixed inset-0 z-50" />
                 <DialogPanel className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-gray-900 px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-white/10">
                     <div className="flex items-center justify-between">
-                        <Link to="/" className="-m-1.5 p-1.5">
-                            <span className="sr-only">Your Company</span>
-                            <img
-                                alt=""
-                                src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=500"
-                                className="h-8 w-auto"
-                            />
+                        <Link
+                            to="/"
+                            className="-m-1.5 p-1.5 flex items-center gap-2"
+                        >
+                            <span className="sr-only">{LIBRARY_NAME}</span>
+                            <div className="border-2 border-white rounded-full p-1">
+                                <img alt="" src={logo} className="h-8 w-auto" />
+                            </div>
+                            <span className="text-lg font-bold text-white">
+                                {LIBRARY_NAME}
+                            </span>
                         </Link>
                         <button
                             type="button"
