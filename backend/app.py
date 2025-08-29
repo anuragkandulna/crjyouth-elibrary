@@ -7,7 +7,6 @@ from flask_cors import CORS
 from utils.security import argon2
 from utils.my_logger import CustomLogger
 from utils.mail_setup import mail
-# Timezone verification removed - using simple SQLite-compatible timestamps
 from routes.auth_routes import auth_bp
 from routes.profile_routes import profile_bp
 from routes.transaction_routes import transaction_bp
