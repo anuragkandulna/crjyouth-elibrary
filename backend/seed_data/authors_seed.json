@@ -1,5 +1,14 @@
-{
-    "1": "C.S. Lewis",
-    "2": "J.R.R. Tolkien",
-    "3": "G.K. Chesterton"
-}
+[
+    {
+        "code": "1",
+        "name": "C.S. Lewis"
+    },
+    {
+        "code": "2",
+        "name": "J.R.R. Tolkien"
+    },
+    {
+        "code": "3",
+        "name": "G.K. Chesterton"
+    }
+]

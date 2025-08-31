@@ -1,5 +1,17 @@
 [
-    ["01001", 1, 2020],
-    ["01001", 2, 2021],
-    ["02001", 1, 2019]
+    {
+        "book_id": "01001",
+        "branch_code": 1,
+        "copy_number": 1
+    },
+    {
+        "book_id": "01001",
+        "branch_code": 1,
+        "copy_number": 2
+    },
+    {
+        "book_id": "02001",
+        "branch_code": 1,
+        "copy_number": 1
+    }
 ]

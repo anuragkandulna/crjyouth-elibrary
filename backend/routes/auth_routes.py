@@ -18,10 +18,11 @@ from utils.security import verify_strong_password
 from utils.mail_setup import mail
 from utils.route_utils import (
     generate_nonce, validate_nonce, validate_request_data,
-    rate_limit, nonce_store, get_device_info, session_required
+    rate_limit, nonce_store, get_device_info, session_required, session_only_required
 )
 from models.session import Session
 from models.exceptions import DuplicateUserError, WeakPasswordError
+from utils.timezone_utils import utc_now, utc_datetime
 
 # Defined variables
 user_token_cache = {}
@@ -64,6 +65,36 @@ def get_nonce():
     nonce = generate_nonce()
     nonce_store[nonce] = True
     return jsonify({"nonce": nonce}), 200
+
+
+@auth_bp.route('/api/v1/debug/cookies', methods=['GET'])
+def debug_cookies():
+    """Debug endpoint to check cookies."""
+    return jsonify({
+        "cookies": dict(request.cookies),
+        "headers": dict(request.headers),
+        "session_token": request.cookies.get('session_token')
+    }), 200
+
+
+@auth_bp.route('/api/v1/debug/db-pool', methods=['GET'])
+def debug_db_pool():
+    """Debug endpoint to check database connection pool status."""
+    try:
+        from utils.sqlite_database import get_database_connection
+        db_connection = get_database_connection()
+        pool_stats = db_connection.get_pool_stats()
+        
+        return jsonify({
+            "database_pool": pool_stats,
+            "database_file": "data/crjyouth_library.db",
+            "status": "healthy"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "status": "error"
+        }), 500
 
 
 @auth_bp.route('/api/v1/check-password-strength', methods=['POST'])
@@ -128,76 +159,107 @@ def register():
 
 
 @auth_bp.route('/api/v1/login', methods=['POST'])
-@rate_limit(max_requests=LOGIN_RATE_LIMIT_REQUESTS, window_minutes=LOGIN_RATE_LIMIT_WINDOW_MINUTES)
+@rate_limit(5, 60)  # 5 requests per minute
 def login():
-    data = request.get_json()
-    
-    is_valid, error_msg = validate_request_data(data, ['password'])
-    if not is_valid:
-        return jsonify({"error": error_msg}), 400
-    
-    if not data.get('email'):
-        return jsonify({
-            "error": "Email is required"
-        }), 400
-    
+    """Login endpoint with session management"""
     try:
-        if not validate_nonce(data.get('nonce', '')):
-            return jsonify({"error": "Invalid or expired nonce"}), 401
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        nonce = data.get('nonce')
+        device_id = data.get('device_id', 'unknown')
+        user_agent = request.headers.get('User-Agent', 'unknown')
+
+        # Validate required parameters
+        if not all([email, password, nonce]):
+            return jsonify({"error": "Missing required parameters: email, password, nonce"}), 400
+
+        # Validate nonce
+        if not validate_nonce(nonce):
+            return jsonify({"error": "Invalid or expired nonce"}), 400
 
         with get_db_session() as session:
-            user = None
-            if data.get('email'):
-                user = session.query(User).filter_by(
-                    email=data['email'], 
-                    is_active=True
-                ).first()
+            # Find user by email
+            user = session.query(User).filter_by(email=email).first()
+            if not user:
+                return jsonify({"error": "Invalid email or password"}), 401
 
-            if not user or not user.check_password(data['password']):
-                return jsonify({
-                    "error": "Invalid credentials"
-                }), 401
+            # Verify password
+            if not user.check_password(password):
+                return jsonify({"error": "Invalid email or password"}), 401
 
-            # Generate JWT token
-            token = user_token_cache.get(user.email) or generate_login_token(user)
+            # Check if user already has an active session for this device and user agent
+            existing_session = Session.get_session_by_device_and_agent(session, user.user_uuid, device_id, user_agent)
             
-            # Get device information
-            device_id, user_agent = get_device_info()
-            ip_address = request.remote_addr
-            
-            # Create user session
-            user_session = Session.create_session(
-                session=session,
-                user_uuid=user.user_uuid, 
-                device_id=device_id or 'unknown',
-                user_agent=user_agent,
-                ip_address=ip_address,
-                ttl_minutes=TOKEN_EXPIRY_HOURS * 60
-            )
-            
-            response = make_response(jsonify({
-                "message": "Login successful",
-                "user_id": user.user_id,
-                "role": "ADMIN" if user.is_admin else "USER",
-                "session_expires_at": user_session.expires_at.isoformat()
-            }))
-            
-            # Set session cookie instead of JWT token
-            response.set_cookie(
-                'session_token', 
-                user_session.session_id, 
-                httponly=True, 
-                samesite='Strict', 
-                secure=True,
-                expires=user_session.expires_at
-            )
-            
-            LOGGER.info(f"User '{user.user_id}' logged in successfully with session '{user_session.session_id}'.")
-            return response
+            if existing_session:
+                # Refresh existing session
+                if Session.refresh_session(session, existing_session.session_id, ttl_minutes=240):
+                    LOGGER.info(f"Refreshed existing session {existing_session.session_id} for user {user.email}")
+                    
+                    response = make_response(jsonify({
+                        "message": "Login successful (session refreshed)",
+                        "user": {
+                            "user_id": user.user_id,
+                            "first_name": user.first_name,
+                            "last_name": user.last_name,
+                            "is_admin": user.is_admin
+                        },
+                        "session_id": existing_session.session_id,
+                        "expires_at": existing_session.expires_at.isoformat() if existing_session.expires_at else None
+                    }))
+                    
+                    response.set_cookie(
+                        'session_token',
+                        existing_session.session_id,
+                        httponly=True,
+                        samesite='Lax',
+                        secure=False,
+                        path='/',
+                        domain=None,
+                        expires=existing_session.expires_at
+                    )
+                    
+                    return response, 200
+                else:
+                    LOGGER.error(f"Failed to refresh session {existing_session.session_id}")
+                    return jsonify({"error": "Failed to refresh session"}), 500
+            else:
+                # Create new session with limit management
+                new_session = Session.create_session_with_limits(session, user.user_uuid, device_id, user_agent, ttl_minutes=240)
+                
+                if not new_session:
+                    return jsonify({"error": "Failed to create session"}), 500
+
+                LOGGER.info(f"Created new session {new_session.session_id} for user {user.email}")
+
+                response = make_response(jsonify({
+                    "message": "Login successful",
+                    "user": {
+                        "user_id": user.user_id,
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "is_admin": user.is_admin
+                    },
+                    "session_id": new_session.session_id,
+                    "expires_at": new_session.expires_at.isoformat() if new_session.expires_at else None
+                }))
+                
+                response.set_cookie(
+                    'session_token',
+                    new_session.session_id,
+                    httponly=True,
+                    samesite='Lax',
+                    secure=False,
+                    path='/',
+                    domain=None,
+                    expires=new_session.expires_at
+                )
+                
+                return response, 200
 
     except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Login failed", 500)
-        return jsonify(error_response), status_code
+        LOGGER.error(f"Login failed: {ex}")
+        return jsonify({"error": "Login failed"}), 500
 
 
 @auth_bp.route('/api/v1/account/reset-password', methods=['PUT'])
@@ -352,7 +414,7 @@ def password_reset_confirm():
 
 # -------------------- Session Management Routes -------------------- #
 @auth_bp.route('/api/v1/session/info', methods=['GET'])
-@session_required
+@session_only_required
 @rate_limit(max_requests=20, window_minutes=5)
 def get_session_info():
     """Get current session information."""
@@ -368,14 +430,36 @@ def get_session_info():
                     "requires_login": True
                 }), 404
             
+            # Handle timezone-naive datetime objects
+            try:
+                created_at_str = user_session.created_at.isoformat()
+            except Exception:
+                created_at_str = str(user_session.created_at)
+                
+            try:
+                expires_at_str = user_session.expires_at.isoformat()
+            except Exception:
+                expires_at_str = str(user_session.expires_at)
+                
+            try:
+                last_refreshed_str = user_session.last_refreshed.isoformat() if user_session.last_refreshed else None
+            except Exception:
+                last_refreshed_str = str(user_session.last_refreshed) if user_session.last_refreshed else None
+                
             return jsonify({
                 "session_id": user_session.session_id,
                 "device_id": user_session.device_id,
-                "created_at": user_session.created_at.isoformat(),
-                "expires_at": user_session.expires_at.isoformat(),
-                "last_refreshed": user_session.last_refreshed.isoformat() if user_session.last_refreshed else None,
+                "created_at": created_at_str,
+                "expires_at": expires_at_str,
+                "last_refreshed": last_refreshed_str,
                 "time_until_expiry": user_session.time_until_expiry().total_seconds() if user_session.time_until_expiry() else None,
-                "user_id": g.current_user['user_id']
+                "user": {
+                    "user_id": g.current_user['user_id'],
+                    "first_name": g.current_user['first_name'],
+                    "last_name": g.current_user['last_name'],
+                    "email": g.current_user['email'],
+                    "is_admin": g.current_user['is_admin']
+                }
             }), 200
             
     except Exception as ex:
@@ -383,76 +467,173 @@ def get_session_info():
         return jsonify(error_response), status_code
 
 
-@auth_bp.route('/api/v1/session/refresh', methods=['POST'])
-@session_required
-@rate_limit(max_requests=10, window_minutes=5)
+@auth_bp.route('/api/v1/auth/refresh', methods=['POST'])
+@session_only_required
 def refresh_session():
-    """Manually refresh current session."""
+    """Refresh the current session"""
     try:
-        session_id = g.session_id
-        
         with get_db_session() as session:
-            if Session.refresh_session(session, session_id):
-                user_session = Session.get_session_by_id(session, session_id)
-                LOGGER.info(f"Session '{session_id}' refreshed manually by user '{g.current_user['user_id']}'.")
-                return jsonify({
-                    "message": "Session refreshed successfully",
-                    "new_expires_at": user_session.expires_at.isoformat()
-                }), 200
+            session_id = g.session_id
+            user_uuid = g.current_user['user_uuid']
+            
+            # Get current session
+            session_obj = Session.get_session_by_id(session, session_id)
+            if not session_obj:
+                return jsonify({"error": "Session not found"}), 404
+            
+            # Check if session is close to expiry (within 2 minutes)
+            now = utc_now()
+            expires_at = session_obj.expires_at
+            time_until_expiry = (expires_at - now).total_seconds()
+            
+            if time_until_expiry <= 120:  # 2 minutes threshold
+                # Refresh the session
+                if Session.refresh_session(session, session_id, ttl_minutes=240):  # 4 hours
+                    session_obj = Session.get_session_by_id(session, session_id)
+                    
+                    # Log the refresh
+                    from utils.session_manager import SessionManager
+                    # Handle timezone-naive datetime objects
+                    try:
+                        new_expires_at_str = session_obj.expires_at.isoformat()
+                    except Exception:
+                        new_expires_at_str = str(session_obj.expires_at)
+                        
+                    SessionManager.log_session_event("refresh", {
+                        "user_uuid": user_uuid,
+                        "session_id": session_id,
+                        "device_id": session_obj.device_id,
+                        "user_agent": session_obj.user_agent
+                    }, {
+                        "time_until_expiry_before": time_until_expiry,
+                        "new_expires_at": new_expires_at_str
+                    })
+                    
+                    # Handle timezone-naive datetime objects
+                    try:
+                        expires_at_str = session_obj.expires_at.isoformat()
+                    except Exception:
+                        expires_at_str = str(session_obj.expires_at)
+                        
+                    response = make_response(jsonify({
+                        "message": "Session refreshed successfully",
+                        "expires_at": expires_at_str
+                    }))
+                    
+                    # Update the cookie
+                    response.set_cookie(
+                        'session_token',
+                        session_id,
+                        httponly=True,
+                        samesite='Lax',
+                        secure=False,
+                        path='/',
+                        domain=None,
+                        expires=session_obj.expires_at
+                    )
+                    
+                    return response, 200
+                else:
+                    return jsonify({"error": "Failed to refresh session"}), 500
             else:
+                # Handle timezone-naive datetime objects
+                try:
+                    expires_at_str = session_obj.expires_at.isoformat()
+                except Exception:
+                    expires_at_str = str(session_obj.expires_at)
+                    
                 return jsonify({
-                    "error": "Session refresh failed",
-                    "requires_login": True
-                }), 400
+                    "message": "Session does not need refresh",
+                    "expires_at": expires_at_str,
+                    "time_until_expiry": time_until_expiry
+                }), 200
                 
     except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Session refresh failed")
-        return jsonify(error_response), status_code
-
+        LOGGER.error(f"Session refresh failed: {ex}")
+        return jsonify({"error": "Session refresh failed"}), 500
 
 @auth_bp.route('/api/v1/logout', methods=['POST'])
-@session_required
 @rate_limit(max_requests=10, window_minutes=5)
 def logout():
     """Logout current session."""
     try:
-        session_id = g.session_id
+        # Get session token from cookie
+        session_token = request.cookies.get('session_token')
         
-        with get_db_session() as session:
-            Session.invalidate_session(session, session_id)
-            
-        # Clear session cookie
+        if session_token:
+            try:
+                with get_db_session() as session:
+                    # Try to invalidate the session if it exists
+                    Session.invalidate_session(session, session_token)
+                    LOGGER.info(f"Session '{session_token}' invalidated during logout.")
+            except Exception as ex:
+                # Session might not exist or be invalid, that's okay for logout
+                LOGGER.warning(f"Session invalidation failed during logout: {ex}")
+        
+        # Always clear session cookie regardless of session state
         response = make_response(jsonify({"message": "Logged out successfully"}))
-        response.set_cookie('session_token', '', expires=0)
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
         
-        LOGGER.info(f"User '{g.current_user['user_id']}' logged out. Session '{session_id}' invalidated.")
+        LOGGER.info("Logout completed successfully.")
         return response
         
     except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Logout failed")
-        return jsonify(error_response), status_code
+        LOGGER.error(f"Logout failed: {ex}")
+        # Even if there's an error, clear the cookie
+        response = make_response(jsonify({"message": "Logged out successfully"}))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        return response
 
 
 @auth_bp.route('/api/v1/logout-all', methods=['POST'])
-@session_required
-@rate_limit(max_requests=5, window_minutes=10)
-def logout_all():
-    """Logout from all sessions."""
+def logout_all_sessions():
+    """Logout from all active sessions for the user"""
     try:
-        user_id = g.current_user['user_id']
+        # Get session token from cookie
+        session_token = request.cookies.get('session_token')
         
-        with get_db_session() as session:
-            # Get user to find user_uuid
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if not user:
-                return jsonify({"error": "User not found"}), 404
-            count = Session.deactivate_all_sessions(session, user.user_uuid)
-        response = make_response(jsonify({"message": "Logged out from all sessions"}))
-        response.set_cookie('session_token', '', expires=0)
+        if session_token:
+            try:
+                with get_db_session() as session:
+                    # Try to get session info to find user_uuid
+                    session_obj = Session.get_session_by_id(session, session_token)
+                    if session_obj:
+                        user_uuid = session_obj.user_uuid
+                        
+                        # Invalidate all sessions for the user
+                        count = Session.invalidate_all_user_sessions(session, user_uuid)
+                        
+                        # Log the logout all event
+                        from utils.session_manager import SessionManager
+                        SessionManager.log_session_event("logout_all", {
+                            "user_uuid": user_uuid,
+                            "session_id": session_token,
+                            "device_id": "all",
+                            "user_agent": "all"
+                        }, {
+                            "sessions_invalidated": count
+                        })
+                        
+                        LOGGER.info(f"Logged out from {count} sessions for user {user_uuid}")
+                    else:
+                        LOGGER.warning("Session not found during logout-all")
+            except Exception as ex:
+                # Session might not exist or be invalid, that's okay for logout
+                LOGGER.warning(f"Session invalidation failed during logout-all: {ex}")
         
-        LOGGER.info(f"User '{user_id}' logged out from all sessions.")
-        return response
+        # Always clear session cookie regardless of session state
+        response = make_response(jsonify({
+            "message": "Logged out from all sessions successfully"
+        }))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        
+        return response, 200
         
     except Exception as ex:
-        error_response, status_code = handle_auth_error(ex, "Logout all failed")
-        return jsonify(error_response), status_code
+        LOGGER.error(f"Logout all failed: {ex}")
+        # Even if there's an error, clear the cookie
+        response = make_response(jsonify({
+            "message": "Logged out from all sessions successfully"
+        }))
+        response.set_cookie('session_token', '', expires=0, secure=False, path='/')
+        return response, 200

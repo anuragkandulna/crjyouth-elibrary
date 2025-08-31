@@ -1,48 +1,86 @@
 import { useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
-import axios from "axios";
-import sha256 from "crypto-js";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { loginUser } from "../../features/user/userSlice";
+import apiClient from "../../utils/apiClient";
+import sessionCache from "../../utils/sessionCache";
+import library_logo from "../../assets/library_logo_dark.png";
 
 export default function Login() {
     const [localEmail, setLocalEmail] = useState("");
     const [localpassword, setLocalPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
+    const dispatch = useDispatch();
+
+    // Check if user is already logged in using cache
+    const cachedUser = sessionCache.getCachedUser();
+    if (cachedUser && sessionCache.isValid()) {
+        // User is already logged in, redirect to home
+        navigate("/");
+        return null;
+    }
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        if (!localEmail || !localpassword) {
+            alert("Please enter both email and password");
+            return;
+        }
+
+        setIsLoading(true);
 
         try {
-            // Fetch a unique nonce from the server
-            // const nonceResponse = await fetch(
-            //     "http://127.0.0.1:5000/api/v1/nonce"
-            // );
-            // const { nonce } = await nonceResponse.json();
+            // Get nonce
+            const nonceResponse = await apiClient.getJSON("/api/v1/nonce");
+            const { nonce } = nonceResponse;
 
-            const nonceResponse = await axios.get(
-                "http://127.0.0.1:5000/api/v1/nonce"
-            );
-            const { nonce } = nonceResponse.data;
-
-            // Hash the password with the nonce
-            const hashedPassword = sha256(localpassword + nonce).toString();
-
-            const response = await axios.post("http://127.0.0.1:5000/login", {
+            // Login with device information
+            const loginData = {
                 email: localEmail,
-                password: hashedPassword,
+                password: localpassword,
                 nonce: nonce,
-            });
+                device_id:
+                    navigator.userAgent +
+                    "_" +
+                    screen.width +
+                    "x" +
+                    screen.height,
+            };
 
-            const data = response.data;
+            const response = await apiClient.postJSON(
+                "/api/v1/login",
+                loginData
+            );
 
-            if (response.status === 200) {
-                navigate("/bookdetails");
+            if (response.user) {
+                // Cache session data
+                sessionCache.setSession({
+                    user: response.user,
+                    sessionId: response.session_id,
+                    expiresAt: response.expires_at,
+                    deviceId: loginData.device_id,
+                });
+
+                dispatch(
+                    loginUser({
+                        user_id: response.user.user_id,
+                        firstname: response.user.first_name,
+                        lastname: response.user.last_name,
+                        is_admin: response.user.is_admin,
+                    })
+                );
+                navigate("/books");
             } else {
-                console.error("Login failed: ", data);
-                alert("Login Failed!!!");
+                alert(
+                    "Login successful but user data is missing. Please try again."
+                );
             }
         } catch (error) {
-            console.error("Login failed: ", error);
-            alert("Login Failed!!!");
+            console.error("Login error:", error);
+            alert(error.message || "Login failed. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -60,11 +98,13 @@ export default function Login() {
                 <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
                     <div className="mx-auto w-full max-w-sm lg:w-96">
                         <div>
-                            <img
-                                alt="Your Company"
-                                src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=600"
-                                className="h-10 w-auto"
-                            />
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-gray-800">
+                                <img
+                                    alt="Library Logo"
+                                    src={library_logo}
+                                    className="h-8 w-auto"
+                                />
+                            </div>
                             <h2 className="mt-8 text-2xl/9 font-bold tracking-tight text-gray-900">
                                 Sign in to your account
                             </h2>
@@ -97,7 +137,7 @@ export default function Login() {
                                                 id="email"
                                                 name="email"
                                                 type="email"
-                                                maxLength="128"
+                                                maxLength="50"
                                                 required
                                                 autoComplete="email"
                                                 className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
@@ -124,7 +164,7 @@ export default function Login() {
                                                 name="password"
                                                 type="password"
                                                 minLength="8"
-                                                maxLength="16"
+                                                maxLength="50"
                                                 required
                                                 autoComplete="current-password"
                                                 className="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
@@ -191,9 +231,12 @@ export default function Login() {
                                     <div>
                                         <button
                                             type="submit"
-                                            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                            disabled={isLoading}
+                                            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:bg-indigo-400 disabled:cursor-not-allowed"
                                         >
-                                            Sign in
+                                            {isLoading
+                                                ? "Signing in..."
+                                                : "Sign in"}
                                         </button>
                                     </div>
                                 </form>

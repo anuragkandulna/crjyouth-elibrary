@@ -9,9 +9,9 @@
         "status": "borrowed",
         "particulars": "Book borrowed for reading",
         "remarks": "Test transaction",
-        "ticket_updated_date": "2024-01-01T00:00:00Z",
-        "book_borrow_date": "2024-01-01T00:00:00Z",
-        "book_due_date": "2024-02-01T00:00:00Z",
+        "ticket_updated_date": "2024-01-01 00:00:00",
+        "book_borrow_date": "2024-01-01 00:00:00",
+        "book_due_date": "2024-02-01 00:00:00",
         "fine_incurred": 0.0
     }
 ]

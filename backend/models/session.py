@@ -1,7 +1,6 @@
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, select, update, delete, func
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Optional, List
 from models.base import Base
@@ -9,7 +8,6 @@ from utils.my_logger import CustomLogger
 from utils.timezone_utils import utc_now, utc_datetime, add_time
 from constants.constants import APP_LOG_FILE
 from constants.config import LOG_LEVEL
-
 
 
 LOGGER = CustomLogger(__name__, level=LOG_LEVEL, log_file=APP_LOG_FILE).get_logger()
@@ -20,12 +18,12 @@ class Session(Base):
 
     session_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_uuid: Mapped[str] = mapped_column(ForeignKey("users.user_uuid"), nullable=False)
-    device_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    device_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=utc_now)
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    last_refreshed: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_refreshed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     user = relationship("User")
@@ -43,10 +41,10 @@ class Session(Base):
             if not user_uuid or not device_id:
                 raise ValueError("user_uuid and device_id are required")
             
-            if len(device_id) > 100:
-                raise ValueError("device_id too long (max 100 characters)")
+            if len(device_id) > 255:
+                raise ValueError("device_id too long (max 255 characters)")
 
-            now = utc_now()
+            now = utc_datetime()
             new_session = Session(
                 user_uuid=user_uuid,
                 device_id=device_id,
@@ -102,24 +100,6 @@ class Session(Base):
 
 
     @staticmethod
-    def is_session_valid(session: Session, session_id: str) -> bool:
-        """
-        Check if a session is valid (active and not expired).
-        """
-        try:
-            now = utc_now()
-            stmt = select(Session).where(
-                Session.session_id == session_id,
-                Session.is_active.is_(True),
-                Session.expires_at > now
-            )
-            return session.scalar(stmt) is not None
-        except Exception as ex:
-            LOGGER.error(f"Failed to validate session '{session_id}': {ex}")
-            return False
-
-
-    @staticmethod
     def refresh_session(session: Session, session_id: str, ttl_minutes: int = 720) -> bool:
         """
         Update the last_refreshed timestamp and extend expiry.
@@ -134,8 +114,11 @@ class Session(Base):
             if db_session:
                 now = utc_now()
                 
+                # Simple datetime comparison
+                expires_at = db_session.expires_at
+                
                 # Check if session hasn't expired
-                if db_session.expires_at <= now:
+                if expires_at <= now:
                     LOGGER.warning(f"Attempted to refresh expired session '{session_id}'.")
                     return False
                 
@@ -203,59 +186,6 @@ class Session(Base):
             return 0
 
 
-    @staticmethod
-    def get_sessions_by_device(session: Session, user_uuid: str, device_id: str) -> List["Session"]:
-        """
-        Get all sessions for a specific user and device.
-        """
-        try:
-            stmt = select(Session).where(
-                Session.user_uuid == user_uuid,
-                Session.device_id == device_id
-            ).order_by(Session.created_at.desc())
-            return list(session.scalars(stmt).all())
-        except Exception as ex:
-            LOGGER.error(f"Failed to retrieve sessions for user '{user_uuid}' on device '{device_id}': {ex}")
-            return []
-
-
-    @staticmethod
-    def cleanup_expired_sessions(session: Session, days_threshold: int = 1) -> int:
-        """
-        Delete sessions that have expired more than specified days ago.
-        """
-        try:
-            threshold = add_time(utc_now(), days=-days_threshold)
-            stmt = delete(Session).where(Session.expires_at < threshold)
-            result = session.execute(stmt)
-            session.commit()
-            LOGGER.info(f"Cleaned up {result.rowcount} expired sessions from database (older than {days_threshold} days).")
-            return result.rowcount
-            
-        except Exception as ex:
-            session.rollback()
-            LOGGER.error(f"Failed to cleanup expired sessions: {ex}")
-            return 0
-
-
-    @staticmethod
-    def count_active_sessions(session: Session, user_uuid: str) -> int:
-        """
-        Count active sessions for a user.
-        """
-        try:
-            now = utc_now()
-            stmt = select(func.count(Session.session_id)).where(
-                Session.user_uuid == user_uuid,
-                Session.is_active.is_(True),
-                Session.expires_at > now
-            )
-            return session.scalar(stmt) or 0
-        except Exception as ex:
-            LOGGER.error(f"Failed to count active sessions for user '{user_uuid}': {ex}")
-            return 0
-
-
     def is_expired(self) -> bool:
         """
         Check if this session has expired.
@@ -274,3 +204,87 @@ class Session(Base):
 
     def __repr__(self):
         return f"<Session(session_id='{self.session_id}', user_uuid='{self.user_uuid}', device='{self.device_id}', active={self.is_active})>"
+
+
+    @staticmethod
+    def create_session_with_limits(session: Session, user_uuid: str, device_id: str, user_agent: str, ttl_minutes: int = 240) -> Optional["Session"]:
+        """
+        Create a new session with limit management
+        Returns the created session or None if creation failed
+        """
+        try:
+            from utils.session_manager import SessionManager
+            
+            # Check and manage session limits before creating new session
+            SessionManager.manage_session_limits(session, user_uuid, device_id, user_agent)
+            
+            # Create the new session
+            new_session = Session.create_session(session, user_uuid, device_id, user_agent, ttl_minutes)
+            
+            if new_session:
+                # Handle timezone-naive datetime objects
+                try:
+                    expires_at_str = new_session.expires_at.isoformat()
+                except Exception:
+                    expires_at_str = str(new_session.expires_at)
+                    
+                SessionManager.log_session_event("create", {
+                    "user_uuid": user_uuid,
+                    "session_id": new_session.session_id,
+                    "device_id": device_id,
+                    "user_agent": user_agent
+                }, {
+                    "ttl_minutes": ttl_minutes,
+                    "expires_at": expires_at_str
+                })
+            
+            return new_session
+            
+        except Exception as ex:
+            LOGGER.error(f"Failed to create session with limits for user {user_uuid}: {ex}")
+            return None
+
+
+    @staticmethod
+    def get_session_by_device_and_agent(session: Session, user_uuid: str, device_id: str, user_agent: str) -> Optional["Session"]:
+        """Get active session by device_id and user_agent"""
+        try:
+            now = utc_now()
+            stmt = select(Session).where(
+                Session.user_uuid == user_uuid,
+                Session.device_id == device_id,
+                Session.user_agent == user_agent,
+                Session.expires_at > now,
+                Session.is_active.is_(True)
+            )
+            return session.scalar(stmt)
+        except Exception as ex:
+            LOGGER.error(f"Failed to retrieve session by device and agent for user '{user_uuid}': {ex}")
+            return None
+
+
+    @staticmethod
+    def invalidate_all_user_sessions(session: Session, user_uuid: str) -> int:
+        """Invalidate all active sessions for a user"""
+        try:
+            now = utc_now()
+            stmt = select(Session).where(
+                Session.user_uuid == user_uuid,
+                Session.expires_at > now,
+                Session.is_active.is_(True)
+            )
+            active_sessions = list(session.scalars(stmt).all())
+            
+            count = 0
+            for sess in active_sessions:
+                sess.is_active = False
+                count += 1
+                LOGGER.info(f"Invalidated session {sess.session_id} for user {user_uuid}")
+            
+            session.commit()
+            return count
+            
+        except Exception as ex:
+            session.rollback()
+            LOGGER.error(f"Failed to invalidate all sessions for user '{user_uuid}': {ex}")
+            return 0
